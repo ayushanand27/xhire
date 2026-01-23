@@ -1,5 +1,5 @@
 import { Router } from "express";
-import protectRoute from "../middleware/protectRoute.js";
+import { protectRoute } from "../middleware/protectRoute.js";
 import {
   getRoomActivity,
   getUserActivity,

@@ -8,7 +8,7 @@ import {
   deleteMessage,
   addReaction,
 } from "../controllers/chatController.js";
-import protectRoute from "../middleware/protectRoute.js";
+import { protectRoute } from "../middleware/protectRoute.js";
 
 const router = express.Router({ mergeParams: true }); // Allow access to roomId param
 

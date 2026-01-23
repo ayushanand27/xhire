@@ -1,5 +1,5 @@
 import express from "express";
-import protectRoute from "../middleware/protectRoute.js";
+import { protectRoute } from "../middleware/protectRoute.js";
 import {
   createRoom,
   getAllRooms,
