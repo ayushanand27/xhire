@@ -1,0 +1,23 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "env": [
+    {
+      "key": "VITE_API_URL",
+      "value": "https://talent-iq-backend.railway.app"
+    },
+    {
+      "key": "VITE_STREAM_API_KEY",
+      "value": "@VITE_STREAM_API_KEY"
+    },
+    {
+      "key": "VITE_CLERK_PUBLISHABLE_KEY",
+      "value": "@VITE_CLERK_PUBLISHABLE_KEY"
+    }
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "main": true
+    }
+  }
+}

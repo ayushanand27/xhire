@@ -1,0 +1,282 @@
+.participants-list {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.participants-header {
+  padding: 1rem;
+  border-bottom: 1px solid #e0e0e0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.participants-header h3 {
+  margin: 0;
+  color: white;
+  font-size: 1.1rem;
+}
+
+.participants-content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.no-participants {
+  text-align: center;
+  color: #999;
+  padding: 2rem 1rem;
+  font-size: 0.9rem;
+}
+
+.participant-item {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+  transition: all 0.3s ease;
+}
+
+.participant-item:hover {
+  border-color: #667eea;
+  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.1);
+}
+
+.participant-item.expanded {
+  border-color: #667eea;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.participant-main {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  cursor: pointer;
+  gap: 0.75rem;
+  transition: background 0.3s ease;
+}
+
+.participant-main:hover {
+  background: #f9f9f9;
+}
+
+.participant-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.participant-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.participant-info h4 {
+  margin: 0 0 0.25rem 0;
+  font-size: 0.95rem;
+  color: #1a1a1a;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.participant-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+}
+
+.role-badge.host {
+  background: rgba(244, 67, 54, 0.2);
+  color: #d32f2f;
+}
+
+.role-badge.moderator {
+  background: rgba(102, 126, 234, 0.2);
+  color: #667eea;
+}
+
+.role-badge.member {
+  background: rgba(76, 175, 80, 0.2);
+  color: #388e3c;
+}
+
+.role-badge.guest {
+  background: rgba(158, 158, 158, 0.2);
+  color: #666;
+}
+
+.status {
+  font-size: 0.9rem;
+}
+
+.status .offline {
+  color: #999;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.expand-icon {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  color: #999;
+  transition: transform 0.3s ease;
+}
+
+.participant-item.expanded .expand-icon {
+  transform: rotate(0deg);
+}
+
+/* Expanded Actions */
+.participant-actions {
+  padding: 1rem;
+  background: #f9f9f9;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.action-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.action-section label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+}
+
+.role-options {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.role-option {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #e0e0e0;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  transition: all 0.3s ease;
+}
+
+.role-option:hover:not(:disabled) {
+  border-color: #667eea;
+  color: #667eea;
+}
+
+.role-option.active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+.role-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.permission-toggles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.permission-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid #e0e0e0;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.3s ease;
+}
+
+.permission-toggle:hover:not(:disabled) {
+  border-color: #667eea;
+  background: #f5f5f5;
+}
+
+.permission-toggle.enabled {
+  background: rgba(102, 126, 234, 0.1);
+  border-color: #667eea;
+  color: #667eea;
+  font-weight: 600;
+}
+
+.permission-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.permission-toggle .icon {
+  font-size: 0.9rem;
+}
+
+.permission-toggle .label {
+  font-weight: 500;
+}
+
+.btn-remove {
+  padding: 0.6rem;
+  background: #fee;
+  color: #c33;
+  border: 1px solid #fcc;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-remove:hover:not(:disabled) {
+  background: #f99;
+  color: white;
+  border-color: #f99;
+}
+
+.btn-remove:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .permission-toggles {
+    grid-template-columns: 1fr;
+  }
+
+  .role-options {
+    flex-direction: column;
+  }
+}
