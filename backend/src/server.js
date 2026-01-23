@@ -34,6 +34,12 @@ app.use(cors({ origin: ENV.CLIENT_URL, credentials: true }));
 app.use(clerkMiddleware()); // this adds auth field to request object: req.auth()
 
 app.use("/api/inngest", serve({ client: inngest, functions }));
+
+// Health check FIRST - before any other routes
+app.get("/health", (req, res) => {
+  res.status(200).json({ msg: "api is up and running" });
+});
+
 app.use("/api/chat", chatRoutes);
 app.use("/api/sessions", sessionRoutes);
 app.use("/api/rooms", roomRoutes);
@@ -41,10 +47,6 @@ app.use("/api/rooms/:roomId/participants", participantRoutes);
 app.use("/api/rooms/:roomId/chat", chatRoutes);
 app.use("/api/rooms/:roomId/activity", activityRoutes);
 app.use("/api/user", userRoutes);
-
-app.get("/health", (req, res) => {
-  res.status(200).json({ msg: "api is up and running" });
-});
 
 // make our app ready for deployment
 if (ENV.NODE_ENV === "production") {
@@ -57,13 +59,25 @@ if (ENV.NODE_ENV === "production") {
 
 const startServer = async () => {
   try {
-    await connectDB();
+    // Start server immediately (for health checks)
     server.listen(ENV.PORT, () => {
-      console.log("Server is running on port:", ENV.PORT);
-      console.log("✅ Socket.IO ready for real-time collaboration");
+      console.log("✅ Server started on port:", ENV.PORT);
+      console.log("✅ Health check ready at /health");
     });
+
+    // Connect to DB in the background
+    try {
+      await connectDB();
+      console.log("✅ Database connected successfully");
+      console.log("✅ Socket.IO ready for real-time collaboration");
+    } catch (dbError) {
+      console.warn("⚠️  Database connection failed, but server is running");
+      console.warn("Database error:", dbError.message);
+      // Server still runs for health checks, DB will retry
+    }
   } catch (error) {
-    console.error("💥 Error starting the server", error);
+    console.error("❌ Fatal error starting server:", error.message);
+    process.exit(1);
   }
 };
 
