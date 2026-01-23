@@ -1,6 +1,7 @@
 import { Server as SocketIOServer } from "socket.io";
 import { Room } from "../models/Room.js";
 import { User } from "../models/User.js";
+import { ENV } from "./env.js";
 
 // This file sets up real-time communication for the collaboration platform
 // Add this to your backend/src/lib/socket.js
@@ -8,7 +9,7 @@ import { User } from "../models/User.js";
 export const initializeSocket = (server) => {
   const io = new SocketIOServer(server, {
     cors: {
-      origin: process.env.CLIENT_URL || "http://localhost:5173",
+      origin: ENV.CLIENT_URL || "http://localhost:5173",
       credentials: true,
     },
   });
