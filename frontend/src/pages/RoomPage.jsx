@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
-import { roomAPI, participantAPI, chatAPI } from "../api/rooms.js";
+import { roomAPI, participantAPI, chatAPI, userAPI } from "../api/rooms.js";
 import MultiUserVideoGrid from "../components/MultiUserVideoGrid.jsx";
 import SharedCodeEditor from "../components/SharedCodeEditor.jsx";
 import ParticipantsList from "../components/ParticipantsList.jsx";
 import Navbar from "../components/Navbar.jsx";
+import useRoomStreamClient from "../hooks/useRoomStreamClient";
+import { StreamCall, StreamVideo } from "@stream-io/video-react-sdk";
+import VideoCallUI from "../components/VideoCallUI";
 import "./RoomPage.css";
 
 export default function RoomPage() {
@@ -22,6 +25,15 @@ export default function RoomPage() {
   const [error, setError] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState("video"); // video, chat, activity
+  const [mongoUserId, setMongoUserId] = useState(() => localStorage.getItem("mongoUserId"));
+
+  const {
+    streamClient,
+    call,
+    chatClient,
+    channel,
+    isInitializingCall,
+  } = useRoomStreamClient(roomId);
 
   useEffect(() => {
     fetchRoomData();
@@ -32,6 +44,30 @@ export default function RoomPage() {
     };
   }, [roomId]);
 
+  const ensureMongoUserId = async () => {
+    if (mongoUserId) return mongoUserId;
+    const { data } = await userAPI.getMe();
+    const id = data?.id;
+    if (id) {
+      localStorage.setItem("mongoUserId", id);
+      setMongoUserId(id);
+    }
+    return id;
+  };
+
+  const normalizeParticipants = (rawParticipants) =>
+    (rawParticipants || []).map((p) => ({
+      ...p,
+      // backend returns populated user at p.userId
+      user: p.user || p.userId,
+      // frontend components expect mediaStatus object
+      mediaStatus: p.mediaStatus || {
+        cameraOn: !p.isCameraOff,
+        microphoneOn: !p.isMuted,
+        screenSharing: !!p.isScreenSharing,
+      },
+    }));
+
   const fetchRoomData = async () => {
     try {
       setLoading(true);
@@ -39,12 +75,13 @@ export default function RoomPage() {
       setRoom(roomResponse.data);
 
       const participantsResponse = await participantAPI.getParticipants(roomId);
-      setParticipants(participantsResponse.data.participants || participantsResponse.data);
+      const rawParticipants = participantsResponse.data.participants || participantsResponse.data;
+      const normalized = normalizeParticipants(rawParticipants);
+      setParticipants(normalized);
 
       // Get current user's role and permissions
-      const currentUser = participantsResponse.data.participants?.find(
-        (p) => p.user._id === localStorage.getItem("userId") // or use auth context
-      );
+      const myMongoId = await ensureMongoUserId();
+      const currentUser = normalized.find((p) => p.user?._id === myMongoId);
       if (currentUser) {
         setCurrentUserRole(currentUser.role);
         setCurrentUserPermissions(currentUser.permissions);
@@ -59,33 +96,45 @@ export default function RoomPage() {
   };
 
   const setupSocket = () => {
-    const newSocket = io(import.meta.env.VITE_API_URL || "http://localhost:3000", {
-      query: { roomId, userId: localStorage.getItem("userId") },
-    });
+    const socketBaseUrl =
+      import.meta.env.VITE_SERVER_URL ||
+      (import.meta.env.VITE_API_URL
+        ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "")
+        : "http://localhost:4000");
 
-    newSocket.on("connect", () => {
-      console.log("Connected to room");
-    });
+    const connect = async () => {
+      const myMongoId = await ensureMongoUserId();
+      const newSocket = io(socketBaseUrl, {
+        auth: { roomId, userId: myMongoId },
+      });
 
-    newSocket.on("participant-joined", (data) => {
-      console.log("User joined:", data);
-      fetchRoomData(); // Refresh participant list
-    });
+      newSocket.on("connect", () => {
+        console.log("Connected to room");
+      });
 
-    newSocket.on("participant-left", (data) => {
-      console.log("User left:", data);
-      fetchRoomData();
-    });
+      newSocket.on("participant-joined", (data) => {
+        console.log("User joined:", data);
+        fetchRoomData(); // Refresh participant list
+      });
 
-    newSocket.on("send-message", (data) => {
-      setMessages((prev) => [...prev, data]);
-    });
+      newSocket.on("participant-left", (data) => {
+        console.log("User left:", data);
+        fetchRoomData();
+      });
 
-    newSocket.on("error", (error) => {
-      console.error("Socket error:", error);
-    });
+      // backend emits "new-message"
+      newSocket.on("new-message", (data) => {
+        setMessages((prev) => [...prev, data]);
+      });
 
-    setSocket(newSocket);
+      newSocket.on("error", (error) => {
+        console.error("Socket error:", error);
+      });
+
+      setSocket(newSocket);
+    };
+
+    connect();
   };
 
   const handleSendMessage = async (e) => {
@@ -189,11 +238,28 @@ export default function RoomPage() {
           <div className="main-panel">
             {activeTab === "video" && (
               <div className="video-section">
-                <MultiUserVideoGrid
-                  roomId={roomId}
-                  participants={participants}
-                  useStreamVideoClient={true}
-                />
+                {isInitializingCall ? (
+                  <div className="video-loading">
+                    <p>Connecting to room video call...</p>
+                  </div>
+                ) : !streamClient || !call ? (
+                  <div className="video-error">
+                    <p>Unable to connect to the room video call.</p>
+                  </div>
+                ) : (
+                  <div className="h-full w-full">
+                    <StreamVideo client={streamClient}>
+                      <StreamCall call={call}>
+                        <VideoCallUI
+                          chatClient={chatClient}
+                          channel={channel}
+                          role={currentUserRole}
+                          permissions={currentUserPermissions}
+                        />
+                      </StreamCall>
+                    </StreamVideo>
+                  </div>
+                )}
               </div>
             )}
 
@@ -253,6 +319,7 @@ export default function RoomPage() {
               roomId={roomId}
               socket={socket}
               canExecute={currentUserPermissions.canExecute}
+              currentUserId={mongoUserId}
             />
           </div>
         </div>

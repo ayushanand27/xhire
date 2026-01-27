@@ -6,7 +6,10 @@ export default function ParticipantsList({ roomId, currentUserRole, participants
   const [expandedParticipant, setExpandedParticipant] = useState(null);
   const [loading, setLoading] = useState({});
 
-  const canModerate = currentUserRole === "host" || currentUserRole === "moderator";
+  // Moderation allowed for creator, interviewer, and presenter roles
+  const canModerate = ["creator", "interviewer", "presenter", "moderator"].includes(
+    currentUserRole
+  );
 
   const handleRoleChange = async (participantId, newRole) => {
     if (!canModerate) return;
@@ -121,7 +124,13 @@ export default function ParticipantsList({ roomId, currentUserRole, participants
                   <div className="action-section">
                     <label>Role:</label>
                     <div className="role-options">
-                      {["member", "moderator"].map((role) => (
+                      {[
+                        "candidate",
+                        "interviewer",
+                        "observer",
+                        "presenter",
+                        "viewer",
+                      ].map((role) => (
                         <button
                           key={role}
                           className={`role-option ${

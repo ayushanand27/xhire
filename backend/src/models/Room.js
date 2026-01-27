@@ -8,7 +8,7 @@ const participantSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ["creator", "presenter", "viewer"],
+    enum: ["creator", "presenter", "viewer", "interviewer", "candidate", "observer"],
     default: "viewer",
   },
   joinedAt: {
@@ -33,7 +33,7 @@ const roomConfigSchema = new mongoose.Schema({
   screenShareEnabled: { type: Boolean, default: true },
   codeEditorEnabled: { type: Boolean, default: true },
   whiteboardEnabled: { type: Boolean, default: false },
-  maxParticipants: { type: Number, default: 5 },
+  maxParticipants: { type: Number, default: 6 },
   allowMembershipChangeOnJoin: { type: Boolean, default: false },
 });
 

@@ -2,15 +2,47 @@ import { StreamChat } from "stream-chat";
 import { StreamClient } from "@stream-io/node-sdk";
 import { ENV } from "./env.js";
 
-const apiKey = ENV.STREAM_API_KEY;
-const apiSecret = ENV.STREAM_API_SECRET;
+// Lazy initialize clients - only create when first accessed
+let chatClientInstance = null;
+let streamClientInstance = null;
 
-if (!apiKey || !apiSecret) {
-  console.error("STREAM_API_KEY or STREAM_API_SECRET is missing");
-}
+const getChatClient = () => {
+  if (!chatClientInstance) {
+    const apiKey = ENV.STREAM_API_KEY;
+    const apiSecret = ENV.STREAM_API_SECRET;
+    
+    if (!apiKey || !apiSecret) {
+      throw new Error("STREAM_API_KEY and STREAM_API_SECRET must be set in environment variables");
+    }
+    
+    chatClientInstance = StreamChat.getInstance(apiKey, apiSecret);
+  }
+  return chatClientInstance;
+};
 
-export const chatClient = StreamChat.getInstance(apiKey, apiSecret); // will be used chat features
-export const streamClient = new StreamClient(apiKey, apiSecret); // will be used for video calls
+const getStreamClient = () => {
+  if (!streamClientInstance) {
+    const apiKey = ENV.STREAM_API_KEY;
+    const apiSecret = ENV.STREAM_API_SECRET;
+    
+    if (!apiKey || !apiSecret) {
+      throw new Error("STREAM_API_KEY and STREAM_API_SECRET must be set in environment variables");
+    }
+    
+    streamClientInstance = new StreamClient(apiKey, apiSecret);
+  }
+  return streamClientInstance;
+};
+
+export const chatClient = {
+  getInstance: () => getChatClient(),
+  upsertUser: async (userData) => getChatClient().upsertUser(userData),
+  deleteUser: async (userId) => getChatClient().deleteUser(userId),
+};
+
+export const streamClient = {
+  getInstance: () => getStreamClient(),
+};
 
 export const upsertStreamUser = async (userData) => {
   try {

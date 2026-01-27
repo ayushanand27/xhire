@@ -16,6 +16,7 @@ import roomRoutes from "./routes/roomRoutes.js";
 import participantRoutes from "./routes/participantRoutes.js";
 import activityRoutes from "./routes/activityRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
+import testRoutes from "./routes/testRoutes.js";
 
 const app = express();
 
@@ -30,7 +31,23 @@ const io = initializeSocket(server);
 // middleware
 app.use(express.json());
 // credentials:true meaning?? => server allows a browser to include cookies on request
-app.use(cors({ origin: ENV.CLIENT_URL, credentials: true }));
+const allowedOrigins = new Set([
+  ENV.CLIENT_URL,
+  "http://localhost:5173",
+  "http://localhost:3001",
+]);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.has(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+  })
+);
 app.use(clerkMiddleware()); // this adds auth field to request object: req.auth()
 
 app.use("/api/inngest", serve({ client: inngest, functions }));
@@ -47,6 +64,7 @@ app.use("/api/rooms/:roomId/participants", participantRoutes);
 app.use("/api/rooms/:roomId/chat", chatRoutes);
 app.use("/api/rooms/:roomId/activity", activityRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/tests", testRoutes);
 
 // make our app ready for deployment
 if (ENV.NODE_ENV === "production") {

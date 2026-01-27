@@ -1,13 +1,24 @@
 import UserPreferences from "../models/UserPreferences.js";
 
+// Get current authenticated user (for frontend identity bridging)
+export const getMe = async (req, res) => {
+  res.json({
+    id: req.user._id,
+    clerkId: req.user.clerkId,
+    name: req.user.name,
+    email: req.user.email,
+    profileImage: req.user.profileImage,
+  });
+};
+
 // Get user preferences
 export const getUserPreferences = async (req, res) => {
   try {
-    let preferences = await UserPreferences.findOne({ userId: req.user.id });
+    let preferences = await UserPreferences.findOne({ userId: req.user._id });
 
     // Create default preferences if not exist
     if (!preferences) {
-      preferences = new UserPreferences({ userId: req.user.id });
+      preferences = new UserPreferences({ userId: req.user._id });
       await preferences.save();
     }
 
@@ -23,10 +34,10 @@ export const updateUserPreferences = async (req, res) => {
     const { roomPreferences, codePreferences, notificationPreferences, privacySettings } =
       req.body;
 
-    let preferences = await UserPreferences.findOne({ userId: req.user.id });
+    let preferences = await UserPreferences.findOne({ userId: req.user._id });
 
     if (!preferences) {
-      preferences = new UserPreferences({ userId: req.user.id });
+      preferences = new UserPreferences({ userId: req.user._id });
     }
 
     // Update only provided fields
@@ -70,10 +81,10 @@ export const addFavoriteRoom = async (req, res) => {
   try {
     const { roomId } = req.body;
 
-    let preferences = await UserPreferences.findOne({ userId: req.user.id });
+    let preferences = await UserPreferences.findOne({ userId: req.user._id });
 
     if (!preferences) {
-      preferences = new UserPreferences({ userId: req.user.id });
+      preferences = new UserPreferences({ userId: req.user._id });
     }
 
     if (!preferences.favoritedRooms.includes(roomId)) {
@@ -92,7 +103,7 @@ export const removeFavoriteRoom = async (req, res) => {
   try {
     const { roomId } = req.params;
 
-    const preferences = await UserPreferences.findOne({ userId: req.user.id });
+    const preferences = await UserPreferences.findOne({ userId: req.user._id });
 
     if (!preferences) {
       return res.status(404).json({ error: "Preferences not found" });
@@ -112,7 +123,7 @@ export const removeFavoriteRoom = async (req, res) => {
 // Get favorite rooms
 export const getFavoriteRooms = async (req, res) => {
   try {
-    const preferences = await UserPreferences.findOne({ userId: req.user.id }).populate(
+    const preferences = await UserPreferences.findOne({ userId: req.user._id }).populate(
       "favoritedRooms",
       "name description roomType maxParticipants participants"
     );
@@ -132,14 +143,14 @@ export const blockUser = async (req, res) => {
   try {
     const { userId } = req.body;
 
-    if (userId === req.user.id) {
+    if (userId === req.user._id.toString()) {
       return res.status(400).json({ error: "You cannot block yourself" });
     }
 
-    let preferences = await UserPreferences.findOne({ userId: req.user.id });
+    let preferences = await UserPreferences.findOne({ userId: req.user._id });
 
     if (!preferences) {
-      preferences = new UserPreferences({ userId: req.user.id });
+      preferences = new UserPreferences({ userId: req.user._id });
     }
 
     if (!preferences.blockedUsers.includes(userId)) {
@@ -158,7 +169,7 @@ export const unblockUser = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    const preferences = await UserPreferences.findOne({ userId: req.user.id });
+    const preferences = await UserPreferences.findOne({ userId: req.user._id });
 
     if (!preferences) {
       return res.status(404).json({ error: "Preferences not found" });
@@ -178,7 +189,7 @@ export const unblockUser = async (req, res) => {
 // Get blocked users
 export const getBlockedUsers = async (req, res) => {
   try {
-    const preferences = await UserPreferences.findOne({ userId: req.user.id }).populate(
+    const preferences = await UserPreferences.findOne({ userId: req.user._id }).populate(
       "blockedUsers",
       "name profileImage email"
     );

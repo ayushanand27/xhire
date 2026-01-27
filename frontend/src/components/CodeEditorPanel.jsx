@@ -1,14 +1,16 @@
 import Editor from "@monaco-editor/react";
-import { Loader2Icon, PlayIcon } from "lucide-react";
+import { Loader2Icon, PlayIcon, CheckCircle2Icon } from "lucide-react";
 import { LANGUAGE_CONFIG } from "../data/problems";
 
 function CodeEditorPanel({
   selectedLanguage,
   code,
   isRunning,
+  isTesting,
   onLanguageChange,
   onCodeChange,
   onRunCode,
+  onRunTests,
 }) {
   return (
     <div className="h-full bg-base-300 flex flex-col">
@@ -28,19 +30,44 @@ function CodeEditorPanel({
           </select>
         </div>
 
-        <button className="btn btn-primary btn-sm gap-2" disabled={isRunning} onClick={onRunCode}>
-          {isRunning ? (
-            <>
-              <Loader2Icon className="size-4 animate-spin" />
-              Running...
-            </>
-          ) : (
-            <>
-              <PlayIcon className="size-4" />
-              Run Code
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            className="btn btn-ghost btn-sm gap-2"
+            type="button"
+            disabled={isTesting}
+            onClick={onRunTests}
+          >
+            {isTesting ? (
+              <>
+                <Loader2Icon className="size-4 animate-spin" />
+                Tests...
+              </>
+            ) : (
+              <>
+                <CheckCircle2Icon className="size-4" />
+                Run with tests
+              </>
+            )}
+          </button>
+
+          <button
+            className="btn btn-primary btn-sm gap-2"
+            disabled={isRunning}
+            onClick={onRunCode}
+          >
+            {isRunning ? (
+              <>
+                <Loader2Icon className="size-4 animate-spin" />
+                Running...
+              </>
+            ) : (
+              <>
+                <PlayIcon className="size-4" />
+                Run Code
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="flex-1">

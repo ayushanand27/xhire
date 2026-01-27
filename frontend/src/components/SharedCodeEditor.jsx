@@ -2,7 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { codeAPI } from "../api/rooms.js";
 import "./SharedCodeEditor.css";
 
-export default function SharedCodeEditor({ roomId, socket, canExecute = false }) {
+export default function SharedCodeEditor({
+  roomId,
+  socket,
+  canExecute = false,
+  currentUserId,
+}) {
   const [code, setCode] = useState("// Welcome to collaborative coding!\n");
   const [language, setLanguage] = useState("javascript");
   const [output, setOutput] = useState("");
@@ -13,21 +18,15 @@ export default function SharedCodeEditor({ roomId, socket, canExecute = false })
 
   useEffect(() => {
     if (socket) {
-      socket.on("code-updated", (newCode) => {
-        setCode(newCode);
-      });
-
-      socket.on("code-executed", (result) => {
-        if (result.success) {
-          setOutput(result.output);
-        } else {
-          setError(result.error);
+      socket.on("code-updated", (payload) => {
+        const incomingCode = typeof payload === "string" ? payload : payload.code;
+        if (incomingCode !== undefined) {
+          setCode(incomingCode);
         }
       });
 
       return () => {
         socket.off("code-updated");
-        socket.off("code-executed");
       };
     }
   }, [socket]);
@@ -38,7 +37,12 @@ export default function SharedCodeEditor({ roomId, socket, canExecute = false })
 
     // Broadcast to other users
     if (socket) {
-      socket.emit("code-updated", newCode);
+      socket.emit("code-updated", {
+        code: newCode,
+        language,
+        cursorPosition: null,
+        userId: currentUserId,
+      });
     }
   };
 
@@ -65,15 +69,6 @@ export default function SharedCodeEditor({ roomId, socket, canExecute = false })
         setError(response.data.error);
       }
 
-      // Broadcast execution event
-      if (socket) {
-        socket.emit("execute-code", {
-          language,
-          success: response.data.success,
-          output: response.data.output,
-          error: response.data.error,
-        });
-      }
     } catch (err) {
       setError("Failed to execute code: " + err.message);
     } finally {

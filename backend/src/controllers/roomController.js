@@ -1,11 +1,10 @@
 import { Room } from "../models/Room.js";
-import { User } from "../models/User.js";
 import { streamClient } from "../lib/stream.js";
 
 // CREATE A NEW ROOM
 export const createRoom = async (req, res) => {
   try {
-    const { userId } = req.auth;
+    const userId = req.user._id;
     const { name, description, roomType, isPublic, password, config, tags } = req.body;
 
     // Validation
@@ -13,10 +12,7 @@ export const createRoom = async (req, res) => {
       return res.status(400).json({ error: "Room name is required" });
     }
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
+    const user = req.user;
 
     const newRoom = new Room({
       name: name.trim(),
@@ -32,9 +28,10 @@ export const createRoom = async (req, res) => {
     // Add creator as participant with creator role
     await newRoom.addParticipant(userId, "creator");
 
-    // Create Stream channel for video/chat
-    const channel = streamClient.channel("messaging", newRoom._id.toString(), {
-      members: [userId],
+    // Create Stream chat channel (messaging)
+    const client = streamClient.getInstance();
+    const channel = client.channel("messaging", newRoom._id.toString(), {
+      members: [user.clerkId],
       name: name,
       custom: {
         roomType,
@@ -138,7 +135,7 @@ export const getRoom = async (req, res) => {
 // JOIN A ROOM
 export const joinRoom = async (req, res) => {
   try {
-    const { userId } = req.auth;
+    const userId = req.user._id;
     const { roomId } = req.params;
     const { password } = req.body;
 
@@ -169,8 +166,9 @@ export const joinRoom = async (req, res) => {
     await room.addParticipant(userId, "viewer");
 
     // Add user to Stream channel
-    const channel = streamClient.channel("messaging", roomId);
-    await channel.addMembers([userId]);
+    const client = streamClient.getInstance();
+    const channel = client.channel("messaging", roomId);
+    await channel.addMembers([req.user.clerkId]);
 
     // Emit event that user joined
     res.json({
@@ -186,7 +184,7 @@ export const joinRoom = async (req, res) => {
 // LEAVE A ROOM
 export const leaveRoom = async (req, res) => {
   try {
-    const { userId } = req.auth;
+    const userId = req.user._id;
     const { roomId } = req.params;
 
     const room = await Room.findById(roomId);
@@ -207,8 +205,9 @@ export const leaveRoom = async (req, res) => {
       await room.removeParticipant(userId);
 
       // Remove from Stream channel
-      const channel = streamClient.channel("messaging", roomId);
-      await channel.removeMembers([userId]);
+      const client = streamClient.getInstance();
+      const channel = client.channel("messaging", roomId);
+      await channel.removeMembers([req.user.clerkId]);
     }
 
     res.json({ message: "Successfully left the room" });
@@ -221,7 +220,7 @@ export const leaveRoom = async (req, res) => {
 // UPDATE ROOM
 export const updateRoom = async (req, res) => {
   try {
-    const { userId } = req.auth;
+    const userId = req.user._id;
     const { roomId } = req.params;
     const { name, description, config, tags, isPublic, password } = req.body;
 
@@ -258,7 +257,7 @@ export const updateRoom = async (req, res) => {
 // DELETE ROOM
 export const deleteRoom = async (req, res) => {
   try {
-    const { userId } = req.auth;
+    const userId = req.user._id;
     const { roomId } = req.params;
 
     const room = await Room.findById(roomId);
@@ -273,7 +272,8 @@ export const deleteRoom = async (req, res) => {
     }
 
     // Delete Stream channel
-    const channel = streamClient.channel("messaging", roomId);
+    const client = streamClient.getInstance();
+    const channel = client.channel("messaging", roomId);
     await channel.delete();
 
     await Room.findByIdAndDelete(roomId);
@@ -288,7 +288,7 @@ export const deleteRoom = async (req, res) => {
 // GET STREAM TOKEN FOR VIDEO/CHAT
 export const getStreamToken = async (req, res) => {
   try {
-    const { userId } = req.auth;
+    const userId = req.user._id;
     const { roomId } = req.params;
 
     // Verify user is in room
@@ -297,18 +297,15 @@ export const getStreamToken = async (req, res) => {
       return res.status(403).json({ error: "Not a participant in this room" });
     }
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
     // Generate Stream token
-    const token = streamClient.createToken(user.clerkId || userId.toString());
+    const client = streamClient.getInstance();
+    const token = client.createToken(req.user.clerkId);
 
     res.json({
       token,
-      userId: user.clerkId || userId.toString(),
-      userName: user.name,
+      userId: req.user.clerkId,
+      userName: req.user.name,
+      userImage: req.user.profileImage,
     });
   } catch (error) {
     console.error("Error generating Stream token:", error);
@@ -331,7 +328,7 @@ export const executeCode = async (req, res) => {
       return res.status(404).json({ error: "Room not found" });
     }
 
-    const participant = room.getParticipant(req.user.id);
+    const participant = room.getParticipant(req.user._id);
     if (!participant) {
       return res.status(403).json({ error: "You are not a participant in this room" });
     }

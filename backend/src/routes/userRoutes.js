@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { protectRoute } from "../middleware/protectRoute.js";
 import {
+  getMe,
   getUserPreferences,
   updateUserPreferences,
   addFavoriteRoom,
@@ -15,6 +16,9 @@ const router = Router();
 
 // All routes require authentication
 router.use(protectRoute);
+
+// Current user
+router.get("/me", getMe);
 
 // User preferences
 router.get("/preferences", getUserPreferences);

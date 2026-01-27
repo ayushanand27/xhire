@@ -14,6 +14,7 @@ import OutputPanel from "../components/OutputPanel";
 import useStreamClient from "../hooks/useStreamClient";
 import { StreamCall, StreamVideo } from "@stream-io/video-react-sdk";
 import VideoCallUI from "../components/VideoCallUI";
+import { testsApi } from "../api/tests";
 
 function SessionPage() {
   const navigate = useNavigate();
@@ -21,6 +22,8 @@ function SessionPage() {
   const { user } = useUser();
   const [output, setOutput] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResults, setTestResults] = useState(null);
 
   const { data: sessionData, isLoading: loadingSession, refetch } = useSessionById(id);
 
@@ -82,10 +85,66 @@ function SessionPage() {
   const handleRunCode = async () => {
     setIsRunning(true);
     setOutput(null);
+    setTestResults(null);
 
     const result = await executeCode(selectedLanguage, code);
     setOutput(result);
     setIsRunning(false);
+  };
+
+  const handleRunTests = async () => {
+    if (selectedLanguage !== "javascript") {
+      setOutput({
+        success: false,
+        error: "Test runner currently supports only JavaScript.",
+      });
+      return;
+    }
+
+    if (!problemData) {
+      setOutput({
+        success: false,
+        error: "Problem metadata not loaded, cannot generate tests.",
+      });
+      return;
+    }
+
+    try {
+      setIsTesting(true);
+      setTestResults(null);
+
+      const description = [
+        problemData.description?.text,
+        ...(problemData.description?.notes || []),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      const { data: gen } = await testsApi.generate({
+        description,
+        examples: problemData.examples || [],
+        constraints: problemData.constraints || [],
+      });
+
+      const { data: run } = await testsApi.run({
+        code,
+        tests: gen.tests,
+      });
+
+      setTestResults(run.results || []);
+      setOutput({
+        success: run.success,
+        output: run.rawOutput,
+        error: run.errorOutput,
+      });
+    } catch (error) {
+      setOutput({
+        success: false,
+        error: error.message || "Failed to run tests",
+      });
+    } finally {
+      setIsTesting(false);
+    }
   };
 
   const handleEndSession = () => {
@@ -236,16 +295,18 @@ function SessionPage() {
                       selectedLanguage={selectedLanguage}
                       code={code}
                       isRunning={isRunning}
+                      isTesting={isTesting}
                       onLanguageChange={handleLanguageChange}
                       onCodeChange={(value) => setCode(value)}
                       onRunCode={handleRunCode}
+                      onRunTests={handleRunTests}
                     />
                   </Panel>
 
                   <PanelResizeHandle className="h-2 bg-base-300 hover:bg-primary transition-colors cursor-row-resize" />
 
                   <Panel defaultSize={30} minSize={15}>
-                    <OutputPanel output={output} />
+                    <OutputPanel output={output} testResults={testResults} />
                   </Panel>
                 </PanelGroup>
               </Panel>

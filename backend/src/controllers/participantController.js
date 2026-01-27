@@ -24,7 +24,7 @@ export const getParticipants = async (req, res) => {
 // UPDATE PARTICIPANT ROLE
 export const updateParticipantRole = async (req, res) => {
   try {
-    const { userId } = req.auth;
+    const userId = req.user._id;
     const { roomId, participantId } = req.params;
     const { role } = req.body;
 
@@ -68,7 +68,7 @@ export const updateParticipantRole = async (req, res) => {
 // UPDATE PARTICIPANT PERMISSIONS
 export const updateParticipantPermissions = async (req, res) => {
   try {
-    const { userId } = req.auth;
+    const userId = req.user._id;
     const { roomId, participantId } = req.params;
     const { permissions } = req.body;
 
@@ -110,7 +110,7 @@ export const updateParticipantPermissions = async (req, res) => {
 // REMOVE PARTICIPANT FROM ROOM
 export const removeParticipant = async (req, res) => {
   try {
-    const { userId } = req.auth;
+    const userId = req.user._id;
     const { roomId, participantId } = req.params;
 
     const room = await Room.findById(roomId);
@@ -141,7 +141,7 @@ export const removeParticipant = async (req, res) => {
 // UPDATE PARTICIPANT MEDIA STATUS (muted, camera off, screen sharing)
 export const updateParticipantMediaStatus = async (req, res) => {
   try {
-    const { userId } = req.auth;
+    const userId = req.user._id;
     const { roomId } = req.params;
     const { isMuted, isCameraOff, isScreenSharing } = req.body;
 

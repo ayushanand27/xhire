@@ -1,32 +1,10 @@
-import { useState, useEffect } from "react";
-import { participantAPI } from "../api/rooms.js";
+import { useState } from "react";
 import "./MultiUserVideoGrid.css";
 
-export default function MultiUserVideoGrid({ roomId, useStreamVideoClient }) {
-  const [participants, setParticipants] = useState([]);
+export default function MultiUserVideoGrid({ participants: initialParticipants }) {
+  const [participants] = useState(initialParticipants || []);
   const [focusedParticipant, setFocusedParticipant] = useState(null);
   const [gridSize, setGridSize] = useState("3");
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (roomId) {
-      fetchParticipants();
-      // Refresh every 10 seconds or via WebSocket
-      const interval = setInterval(fetchParticipants, 10000);
-      return () => clearInterval(interval);
-    }
-  }, [roomId]);
-
-  const fetchParticipants = async () => {
-    try {
-      const response = await participantAPI.getParticipants(roomId);
-      setParticipants(response.data.participants || response.data);
-      setLoading(false);
-    } catch (error) {
-      console.error("Failed to fetch participants:", error);
-      setLoading(false);
-    }
-  };
 
   const getGridClass = () => {
     const count = participants.length;
@@ -37,10 +15,6 @@ export default function MultiUserVideoGrid({ roomId, useStreamVideoClient }) {
     if (count <= 9) return "grid-3x3";
     return "grid-responsive";
   };
-
-  if (loading) {
-    return <div className="video-grid-container"><div className="loading">Loading participants...</div></div>;
-  }
 
   if (participants.length === 0) {
     return (
