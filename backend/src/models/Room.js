@@ -84,6 +84,14 @@ const roomSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    recordingActive: {
+      type: Boolean,
+      default: false,
+    },
+    recordingStartedAt: {
+      type: Date,
+      default: null,
+    },
     expiresAt: {
       type: Date,
       default: null, // null = no expiration

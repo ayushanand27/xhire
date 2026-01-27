@@ -17,6 +17,8 @@ import participantRoutes from "./routes/participantRoutes.js";
 import activityRoutes from "./routes/activityRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import testRoutes from "./routes/testRoutes.js";
+import recordingRoutes from "./routes/recordingRoutes.js";
+import streamWebhookRoutes from "./routes/streamWebhookRoutes.js";
 
 const app = express();
 
@@ -63,8 +65,10 @@ app.use("/api/rooms", roomRoutes);
 app.use("/api/rooms/:roomId/participants", participantRoutes);
 app.use("/api/rooms/:roomId/chat", chatRoutes);
 app.use("/api/rooms/:roomId/activity", activityRoutes);
+app.use("/api/rooms/:roomId/recordings", recordingRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/tests", testRoutes);
+app.use("/api/stream/webhook", streamWebhookRoutes);
 
 // make our app ready for deployment
 if (ENV.NODE_ENV === "production") {

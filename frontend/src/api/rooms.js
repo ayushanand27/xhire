@@ -13,6 +13,10 @@ export const roomAPI = {
   getStreamToken: (roomId) => axios.get(`/api/rooms/${roomId}/stream-token`),
   executeCode: (roomId, codeData) =>
     axios.post(`/api/rooms/${roomId}/execute-code`, codeData),
+  startRecording: (roomId, payload = {}) =>
+    axios.post(`/api/rooms/${roomId}/recordings/start`, payload),
+  stopRecording: (roomId, payload = {}) =>
+    axios.post(`/api/rooms/${roomId}/recordings/stop`, payload),
 };
 
 // ============= PARTICIPANT APIs =============

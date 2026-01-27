@@ -255,6 +255,8 @@ export default function RoomPage() {
                           channel={channel}
                           role={currentUserRole}
                           permissions={currentUserPermissions}
+                          roomId={roomId}
+                          initialRecordingActive={!!room?.recordingActive}
                         />
                       </StreamCall>
                     </StreamVideo>

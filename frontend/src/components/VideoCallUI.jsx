@@ -5,19 +5,42 @@ import {
   useCallStateHooks,
 } from "@stream-io/video-react-sdk";
 import { Loader2Icon, MessageSquareIcon, UsersIcon, XIcon } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { Channel, Chat, MessageInput, MessageList, Thread, Window } from "stream-chat-react";
+import { roomAPI } from "../api/rooms.js";
 
 import "@stream-io/video-react-sdk/dist/css/styles.css";
 import "stream-chat-react/dist/css/v2/index.css";
 
-function VideoCallUI({ chatClient, channel }) {
+function VideoCallUI({ chatClient, channel, role, permissions, roomId, initialRecordingActive }) {
   const navigate = useNavigate();
   const { useCallCallingState, useParticipantCount } = useCallStateHooks();
   const callingState = useCallCallingState();
   const participantCount = useParticipantCount();
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isRecording, setIsRecording] = useState(!!initialRecordingActive);
+
+  const canRecord = useMemo(() => {
+    return ["creator", "interviewer", "presenter"].includes(role);
+  }, [role]);
+
+  const handleToggleRecording = async () => {
+    if (!roomId) return;
+    try {
+      if (!isRecording) {
+        await roomAPI.startRecording(roomId, {});
+        setIsRecording(true);
+      } else {
+        await roomAPI.stopRecording(roomId, {});
+        setIsRecording(false);
+      }
+    } catch (e) {
+      // basic feedback; page already has toasts elsewhere if any
+      console.error("Recording toggle failed", e);
+      alert("Failed to toggle recording: " + (e?.response?.data?.error || e.message));
+    }
+  };
 
   if (callingState === CallingState.JOINING) {
     return (
@@ -41,7 +64,7 @@ function VideoCallUI({ chatClient, channel }) {
               {participantCount} {participantCount === 1 ? "participant" : "participants"}
             </span>
           </div>
-          {chatClient && channel && (
+          {chatClient && channel && (permissions?.canChat ?? true) && (
             <button
               onClick={() => setIsChatOpen(!isChatOpen)}
               className={`btn btn-sm gap-2 ${isChatOpen ? "btn-primary" : "btn-ghost"}`}
@@ -57,7 +80,16 @@ function VideoCallUI({ chatClient, channel }) {
           <SpeakerLayout />
         </div>
 
-        <div className="bg-base-100 p-3 rounded-lg shadow flex justify-center">
+        <div className="bg-base-100 p-3 rounded-lg shadow flex items-center justify-center gap-3">
+          {canRecord && (
+            <button
+              onClick={handleToggleRecording}
+              className={`btn btn-sm ${isRecording ? "btn-error" : "btn-primary"}`}
+              title={isRecording ? "Stop recording" : "Start recording"}
+            >
+              {isRecording ? "■ Stop REC" : "● Start REC"}
+            </button>
+          )}
           <CallControls onLeave={() => navigate("/dashboard")} />
         </div>
       </div>

@@ -7,6 +7,13 @@ import ProblemsPage from "./pages/ProblemsPage";
 import SessionPage from "./pages/SessionPage";
 import RoomGrid from "./components/RoomGrid.jsx";
 import RoomPage from "./pages/RoomPage.jsx";
+// New UI (frontend-only) routes
+import Landing from "./newui/pages/Landing.jsx";
+import Dashboard from "./newui/pages/Dashboard.jsx";
+import InterviewRoom from "./newui/pages/InterviewRoom.jsx";
+import Practice from "./newui/pages/Practice.jsx";
+import Login from "./newui/pages/Login.jsx";
+import Register from "./newui/pages/Register.jsx";
 
 import { Toaster } from "react-hot-toast";
 
@@ -30,6 +37,14 @@ function App() {
         {/* New collaboration room routes */}
         <Route path="/rooms" element={isSignedIn ? <RoomGrid /> : <Navigate to={"/"} />} />
         <Route path="/room/:roomId" element={isSignedIn ? <RoomPage /> : <Navigate to={"/"} />} />
+
+        {/* New UI (frontend-only) - always accessible for design/deploy */}
+        <Route path="/ui" element={<Landing />} />
+        <Route path="/ui/login" element={<Login />} />
+        <Route path="/ui/register" element={<Register />} />
+        <Route path="/ui/dashboard" element={<Dashboard />} />
+        <Route path="/ui/room/:roomId" element={<InterviewRoom />} />
+        <Route path="/ui/practice" element={<Practice />} />
       </Routes>
 
       <Toaster toastOptions={{ duration: 3000 }} />
