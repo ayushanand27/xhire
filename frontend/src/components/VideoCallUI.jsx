@@ -6,7 +6,7 @@ import {
 } from "@stream-io/video-react-sdk";
 import { Loader2Icon, MessageSquareIcon, UsersIcon, XIcon } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { Channel, Chat, MessageInput, MessageList, Thread, Window } from "stream-chat-react";
 import { roomAPI } from "../api/rooms.js";
 
@@ -98,17 +98,17 @@ function VideoCallUI({ chatClient, channel, role, permissions, roomId, initialRe
 
       {chatClient && channel && (
         <div
-          className={`flex flex-col rounded-lg shadow overflow-hidden bg-[#272a30] transition-all duration-300 ease-in-out ${
+          className={`flex flex-col rounded-app shadow-elevate overflow-hidden bg-background transition-all duration-300 ease-in-out ${
             isChatOpen ? "w-80 opacity-100" : "w-0 opacity-0"
           }`}
         >
           {isChatOpen && (
             <>
-              <div className="bg-[#1c1e22] p-3 border-b border-[#3a3d44] flex items-center justify-between">
-                <h3 className="font-semibold text-white">Session Chat</h3>
+              <div className="bg-muted p-3 border-b border-border flex items-center justify-between">
+                <h3 className="font-semibold text-foreground">Session Chat</h3>
                 <button
                   onClick={() => setIsChatOpen(false)}
-                  className="text-gray-400 hover:text-white transition-colors"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
                   title="Close chat"
                 >
                   <XIcon className="size-5" />

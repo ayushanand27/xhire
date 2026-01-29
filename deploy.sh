@@ -2,7 +2,7 @@
 
 # Talent-IQ Quick Deployment Script
 
-echo "🚀 Talent-IQ Deployment Setup"
+echo "🚀 Hire Deployment Setup"
 echo "=============================="
 
 # Check if git is initialized

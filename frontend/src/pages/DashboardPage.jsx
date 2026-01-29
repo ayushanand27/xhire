@@ -1,14 +1,16 @@
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { useUser } from "@clerk/clerk-react";
 import { useState } from "react";
 import { useActiveSessions, useCreateSession, useMyRecentSessions } from "../hooks/useSessions";
 
 import Navbar from "../components/Navbar";
+import Footer from "../components/Footer";
 import WelcomeSection from "../components/WelcomeSection";
 import StatsCards from "../components/StatsCards";
 import ActiveSessions from "../components/ActiveSessions";
 import RecentSessions from "../components/RecentSessions";
 import CreateSessionModal from "../components/CreateSessionModal";
+import PageShell, { PageContainer } from "../components/PageShell.jsx";
 
 function DashboardPage() {
   const navigate = useNavigate();
@@ -48,13 +50,21 @@ function DashboardPage() {
   };
 
   return (
-    <>
-      <div className="min-h-screen bg-base-300">
-        <Navbar />
-        <WelcomeSection onCreateSession={() => setShowCreateModal(true)} />
+    <PageShell>
+      <Navbar />
 
-        {/* Grid layout */}
-        <div className="container mx-auto px-6 pb-16">
+      {/* Hero/Welcome */}
+      <section className="border-b border-border/40 bg-background/60 backdrop-blur">
+        <PageContainer>
+          <div className="py-8">
+            <WelcomeSection onCreateSession={() => setShowCreateModal(true)} />
+          </div>
+        </PageContainer>
+      </section>
+
+      {/* Dashboard content */}
+      <main className="py-8">
+        <PageContainer>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <StatsCards
               activeSessionsCount={activeSessions.length}
@@ -67,9 +77,13 @@ function DashboardPage() {
             />
           </div>
 
-          <RecentSessions sessions={recentSessions} isLoading={loadingRecentSessions} />
-        </div>
-      </div>
+          <div className="mt-6">
+            <RecentSessions sessions={recentSessions} isLoading={loadingRecentSessions} />
+          </div>
+        </PageContainer>
+      </main>
+
+      <Footer />
 
       <CreateSessionModal
         isOpen={showCreateModal}
@@ -79,7 +93,7 @@ function DashboardPage() {
         onCreateRoom={handleCreateRoom}
         isCreating={createSessionMutation.isPending}
       />
-    </>
+    </PageShell>
   );
 }
 
