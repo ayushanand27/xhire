@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import { Code2Icon, LoaderIcon, PlusIcon } from "lucide-react";
-import { PROBLEMS } from "../data/problems";
+import { problemsApi } from "../api/problems";
 
 function CreateSessionModal({
   isOpen,
@@ -9,7 +10,28 @@ function CreateSessionModal({
   onCreateRoom,
   isCreating,
 }) {
-  const problems = Object.values(PROBLEMS);
+  const [problems, setProblems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let mounted = true;
+    setLoading(true);
+    problemsApi
+      .list()
+      .then(({ data }) => {
+        if (!mounted) return;
+        const items = Array.isArray(data?.problems) ? data.problems : data;
+        setProblems(items || []);
+        setError(null);
+      })
+      .catch((e) => setError(e.message || "Failed to load problems"))
+      .finally(() => mounted && setLoading(false));
+    return () => {
+      mounted = false;
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -19,7 +41,8 @@ function CreateSessionModal({
         <h3 className="font-bold text-2xl mb-6">Create New Session</h3>
 
         <div className="space-y-8">
-          {/* PROBLEM SELECTION */}
+          {/* PROBLEM SELECTION */
+          }
           <div className="space-y-2">
             <label className="label">
               <span className="label-text font-semibold">Select Problem</span>
@@ -30,7 +53,7 @@ function CreateSessionModal({
               className="select w-full"
               value={roomConfig.problem}
               onChange={(e) => {
-                const selectedProblem = problems.find((p) => p.title === e.target.value);
+                const selectedProblem = problems.find((p) => p.title === e.target.value) || {};
                 setRoomConfig({
                   difficulty: selectedProblem.difficulty,
                   problem: e.target.value,
@@ -40,8 +63,9 @@ function CreateSessionModal({
               <option value="" disabled>
                 Choose a coding problem...
               </option>
-
-              {problems.map((problem) => (
+              {loading && <option>Loading problems…</option>}
+              {error && !loading && <option disabled>Error loading problems</option>}
+              {!loading && !error && problems.map((problem) => (
                 <option key={problem.id} value={problem.title}>
                   {problem.title} ({problem.difficulty})
                 </option>
