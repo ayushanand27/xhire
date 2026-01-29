@@ -1,77 +1,43 @@
-import { Link, useLocation } from "react-router";
-import { BookOpenIcon, LayoutDashboardIcon, SparklesIcon } from "lucide-react";
-import { UserButton } from "@clerk/clerk-react";
+import { Link, useNavigate } from "react-router-dom";
+import { useUser, useClerk } from "@clerk/clerk-react";
+import { PageContainer } from "./PageShell.jsx";
 
-function Navbar() {
-  const location = useLocation();
+export default function Navbar() {
+  const navigate = useNavigate();
+  const { isSignedIn } = useUser();
+  const { signOut } = useClerk();
 
-  console.log(location);
-
-  const isActive = (path) => location.pathname === path;
-
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate("/");
+    } catch (_) {}
+  };
   return (
-    <nav className="bg-base-100/80 backdrop-blur-md border-b border-primary/20 sticky top-0 z-50 shadow-lg">
-      <div className="max-w-7xl mx-auto p-4 flex items-center justify-between">
-        {/* LOGO */}
-        <Link
-          to="/"
-          className="group flex items-center gap-3 hover:scale-105 transition-transform duration-200"
-        >
-          <div className="size-10 rounded-xl bg-gradient-to-r from-primary via-secondary to-accent flex items-center justify-center shadow-lg ">
-            <SparklesIcon className="size-6 text-white" />
-          </div>
-
-          <div className="flex flex-col">
-            <span className="font-black text-xl bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent font-mono tracking-wider">
-              Talent IQ
-            </span>
-            <span className="text-xs text-base-content/60 font-medium -mt-1">Code Together</span>
-          </div>
+    <header className="sticky top-0 z-40 border-b border-border/50 bg-background/80 backdrop-blur-md">
+      <PageContainer className="py-3 flex items-center justify-between">
+        <Link to="/" className="ripple text-lg font-semibold tracking-tight hover:opacity-90 transition-transform hover:scale-[1.02] active:scale-95">
+          <span className="text-primary">x</span>Hire
         </Link>
-
-        <div className="flex items-center gap-1">
-          {/* PROBLEMS PAGE LINK */}
-          <Link
-            to={"/problems"}
-            className={`px-4 py-2.5 rounded-lg transition-all duration-200 
-              ${
-                isActive("/problems")
-                  ? "bg-primary text-primary-content"
-                  : "hover:bg-base-200 text-base-content/70 hover:text-base-content"
-              }
-              
-              `}
-          >
-            <div className="flex items-center gap-x-2.5">
-              <BookOpenIcon className="size-4" />
-              <span className="font-medium hidden sm:inline">Problems</span>
-            </div>
-          </Link>
-
-          {/* DASHBORD PAGE LINK */}
-          <Link
-            to={"/dashboard"}
-            className={`px-4 py-2.5 rounded-lg transition-all duration-200 
-              ${
-                isActive("/dashboard")
-                  ? "bg-primary text-primary-content"
-                  : "hover:bg-base-200 text-base-content/70 hover:text-base-content"
-              }
-              
-              `}
-          >
-            <div className="flex items-center gap-x-2.5">
-              <LayoutDashboardIcon className="size-4" />
-              <span className="font-medium hidden sm:inline">Dashbord</span>
-            </div>
-          </Link>
-
-          <div className="ml-4 mt-2">
-            <UserButton />
-          </div>
+        <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
+          <Link to="/" className="ripple hover:text-foreground transition-colors transition-transform hover:scale-[1.05] active:scale-95">Home</Link>
+          <Link to="/dashboard" className="ripple hover:text-foreground transition-colors transition-transform hover:scale-[1.05] active:scale-95">Dashboard</Link>
+          <Link to="/practice" className="ripple hover:text-foreground transition-colors transition-transform hover:scale-[1.05] active:scale-95">Practice</Link>
+        </nav>
+        <div className="flex items-center gap-2">
+          {!isSignedIn ? (
+            <>
+              <Link to="/login" className="ripple px-3 py-1.5 rounded-md text-sm bg-transparent hover:bg-muted transition-colors transition-transform hover:scale-[1.02] active:scale-95 border border-transparent">Log in</Link>
+              <Link to="/register" className="ripple px-3 py-1.5 rounded-md text-sm bg-primary text-primary-foreground shadow-md hover:shadow-lg transition transition-transform hover:scale-[1.02] active:scale-95">Get Started</Link>
+            </>
+          ) : (
+            <>
+              <Link to="/dashboard" className="ripple px-3 py-1.5 rounded-md text-sm bg-transparent hover:bg-muted transition-colors transition-transform hover:scale-[1.02] active:scale-95 border border-transparent">Dashboard</Link>
+              <button onClick={handleSignOut} className="ripple px-3 py-1.5 rounded-md text-sm bg-secondary text-secondary-foreground hover:bg-secondary/90 transition-colors transition-transform hover:scale-[1.02] active:scale-95">Sign out</button>
+            </>
+          )}
         </div>
-      </div>
-    </nav>
+      </PageContainer>
+    </header>
   );
 }
-export default Navbar;

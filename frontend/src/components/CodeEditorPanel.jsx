@@ -1,6 +1,6 @@
 import Editor from "@monaco-editor/react";
 import { Loader2Icon, PlayIcon, CheckCircle2Icon } from "lucide-react";
-import { LANGUAGE_CONFIG } from "../data/problems";
+import { LANGUAGE_CONFIG } from "../lib/languages";
 
 function CodeEditorPanel({
   selectedLanguage,
