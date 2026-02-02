@@ -2,6 +2,7 @@ import { Server as SocketIOServer } from "socket.io";
 import { Room } from "../models/Room.js";
 import { User } from "../models/User.js";
 import { ENV } from "./env.js";
+import { executeCode } from "./piston.js";
 
 // This file sets up real-time communication for the collaboration platform
 // Add this to your backend/src/lib/socket.js
@@ -112,13 +113,15 @@ export const initializeSocket = (server) => {
           return;
         }
 
-        // TODO: Call Piston API to execute code
-        // const result = await executeCode(code, language);
+        // Call Piston API to execute code
+        const result = await executeCode(language, code);
 
         // Broadcast result to all users
         io.to(socket.roomId).emit("code-execution-result", {
           userId: socket.userId,
-          output: "Code execution result here", // replace with actual result
+          output: result.output,
+          error: result.error,
+          success: result.success,
           timestamp: new Date(),
         });
       } catch (error) {
