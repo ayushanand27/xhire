@@ -65,19 +65,38 @@ function DashboardPage() {
       {/* Dashboard content */}
       <main className="py-8">
         <PageContainer>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <StatsCards
-              activeSessionsCount={activeSessions.length}
-              recentSessionsCount={recentSessions.length}
-            />
-            <ActiveSessions
-              sessions={activeSessions}
-              isLoading={loadingActiveSessions}
-              isUserInSession={isUserInSession}
-            />
-          </div>
+          <div className="grid grid-cols-1 gap-6">
+            <div className="grid gap-4 lg:grid-cols-3">
+              <StatsCards
+                activeSessionsCount={activeSessions.length}
+                recentSessionsCount={recentSessions.length}
+              />
+              <div className="rounded-app border border-border/60 bg-background/70 p-5 shadow-elevate">
+                <h3 className="text-base font-semibold">Quick actions</h3>
+                <p className="text-sm text-muted-foreground mt-1">Create sessions, invite people, or practice solo.</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button className="ripple btn btn-primary" onClick={() => setShowCreateModal(true)}>Create Session</button>
+                  <button className="ripple btn btn-ghost" onClick={() => navigate("/rooms")}>Browse Rooms</button>
+                  <button className="ripple btn btn-ghost" onClick={() => navigate("/practice")}>Practice</button>
+                </div>
+              </div>
+              <div className="rounded-app border border-border/60 bg-background/70 p-5 shadow-elevate">
+                <h3 className="text-base font-semibold">Invite teammates</h3>
+                <p className="text-sm text-muted-foreground mt-1">Create a room and send the link to up to 5 participants.</p>
+                <div className="mt-4 text-sm text-muted-foreground">
+                  Tip: Open any room and use “Invite by Email”.
+                </div>
+              </div>
+            </div>
 
-          <div className="mt-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <ActiveSessions
+                sessions={activeSessions}
+                isLoading={loadingActiveSessions}
+                isUserInSession={isUserInSession}
+              />
+            </div>
+
             <RecentSessions sessions={recentSessions} isLoading={loadingRecentSessions} />
           </div>
         </PageContainer>

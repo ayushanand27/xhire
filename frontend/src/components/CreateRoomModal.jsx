@@ -7,9 +7,9 @@ export default function CreateRoomModal({ onClose, onRoomCreated }) {
     name: "",
     description: "",
     roomType: "collab",
-    language: "javascript",
+    language: "javascript", // default, user picks in editor
     isPublic: true,
-    maxParticipants: 10,
+    maxParticipants: 5,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -33,8 +33,9 @@ export default function CreateRoomModal({ onClose, onRoomCreated }) {
 
     try {
       setLoading(true);
-      await roomAPI.createRoom(formData);
-      onRoomCreated();
+      const response = await roomAPI.createRoom(formData);
+      const roomId = response.data?.room?._id || response.data?._id;
+      onRoomCreated(roomId);
     } catch (err) {
       setError(err.response?.data?.error || "Failed to create room: " + err.message);
     } finally {
@@ -62,7 +63,7 @@ export default function CreateRoomModal({ onClose, onRoomCreated }) {
               name="name"
               value={formData.name}
               onChange={handleChange}
-              placeholder="e.g., JavaScript Study Group"
+              placeholder="e.g., JavaScript Interview"
               maxLength="100"
               required
             />
@@ -70,108 +71,53 @@ export default function CreateRoomModal({ onClose, onRoomCreated }) {
 
           {/* Description */}
           <div className="form-group">
-            <label htmlFor="description">Description</label>
+            <label htmlFor="description">Description (optional)</label>
             <textarea
               id="description"
               name="description"
               value={formData.description}
               onChange={handleChange}
               placeholder="What is this room for?"
-              rows="3"
+              rows="2"
               maxLength="500"
             />
-            <span className="char-count">
-              {formData.description.length}/500
-            </span>
           </div>
 
           {/* Room Type */}
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="roomType">Room Type *</label>
-              <select
-                id="roomType"
-                name="roomType"
-                value={formData.roomType}
-                onChange={handleChange}
-              >
-                <option value="interview">Interview</option>
-                <option value="study">Study Group</option>
-                <option value="collab">Collaboration</option>
-                <option value="practice">Practice</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="language">Primary Language *</label>
-              <select
-                id="language"
-                name="language"
-                value={formData.language}
-                onChange={handleChange}
-              >
-                <option value="javascript">JavaScript</option>
-                <option value="python">Python</option>
-                <option value="java">Java</option>
-                <option value="cpp">C++</option>
-                <option value="csharp">C#</option>
-                <option value="go">Go</option>
-                <option value="rust">Rust</option>
-                <option value="ruby">Ruby</option>
-              </select>
-            </div>
+          <div className="form-group">
+            <label htmlFor="roomType">Room Type</label>
+            <select
+              id="roomType"
+              name="roomType"
+              value={formData.roomType}
+              onChange={handleChange}
+            >
+              <option value="interview">Interview</option>
+              <option value="collab">Collaboration</option>
+              <option value="practice">Practice</option>
+            </select>
           </div>
 
-          {/* Max Participants */}
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="maxParticipants">Max Participants *</label>
+          {/* Public checkbox */}
+          <div className="form-group checkbox-group">
+            <label htmlFor="isPublic">
               <input
-                type="number"
-                id="maxParticipants"
-                name="maxParticipants"
-                value={formData.maxParticipants}
+                type="checkbox"
+                id="isPublic"
+                name="isPublic"
+                checked={formData.isPublic}
                 onChange={handleChange}
-                min="2"
-                max="100"
-                required
               />
-            </div>
-
-            <div className="form-group checkbox-group">
-              <label htmlFor="isPublic">
-                <input
-                  type="checkbox"
-                  id="isPublic"
-                  name="isPublic"
-                  checked={formData.isPublic}
-                  onChange={handleChange}
-                />
-                <span>Make this room public</span>
-              </label>
-              <small>
-                {formData.isPublic
-                  ? "Anyone can discover and join this room"
-                  : "Only invited users can join"}
-              </small>
-            </div>
+              <span>Public room (anyone with link can join)</span>
+            </label>
           </div>
 
           {/* Form Actions */}
           <div className="form-actions">
-            <button
-              type="button"
-              className="btn-cancel"
-              onClick={onClose}
-              disabled={loading}
-            >
+            <button type="button" className="btn-cancel" onClick={onClose} disabled={loading}>
               Cancel
             </button>
-            <button
-              type="submit"
-              className="btn-submit"
-              disabled={loading}
-            >
+            <button type="submit" className="btn-submit" disabled={loading}>
               {loading ? "Creating..." : "Create Room"}
             </button>
           </div>

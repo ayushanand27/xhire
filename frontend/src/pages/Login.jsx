@@ -12,7 +12,7 @@ export default function Login() {
           <div className="mx-auto max-w-md rounded-xl border border-border/50 bg-background/60 p-6 shadow-sm">
             <h1 className="text-2xl font-semibold tracking-tight mb-4">Log in</h1>
             <p className="text-sm text-muted-foreground mb-6">Welcome back. Access your dashboard and sessions.</p>
-            <div className="flex justify-center"><SignIn routing="path" path="/login" signUpUrl="/register" /></div>
+            <div className="flex justify-center"><SignIn routing="path" path="/login" signUpUrl="/register" afterSignInUrl="/dashboard" /></div>
           </div>
         </PageContainer>
       </main>

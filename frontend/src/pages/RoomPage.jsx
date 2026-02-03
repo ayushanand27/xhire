@@ -27,6 +27,10 @@ export default function RoomPage() {
   const [error, setError] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mongoUserId, setMongoUserId] = useState(() => localStorage.getItem("mongoUserId"));
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteMessage, setInviteMessage] = useState("");
+  const [inviteSending, setInviteSending] = useState(false);
 
   const {
     streamClient,
@@ -166,6 +170,40 @@ export default function RoomPage() {
     }
   };
 
+  const handleCopyLink = async () => {
+    const link = `${window.location.origin}/room/${roomId}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      toast.success("Room link copied");
+    } catch (_) {
+      toast.error("Failed to copy link");
+    }
+  };
+
+  const handleInvite = async (e) => {
+    e.preventDefault();
+    if (!inviteEmail.trim()) {
+      toast.error("Enter an email to invite");
+      return;
+    }
+
+    try {
+      setInviteSending(true);
+      await roomAPI.inviteToRoom(roomId, {
+        email: inviteEmail.trim(),
+        message: inviteMessage.trim(),
+      });
+      toast.success("Invite sent");
+      setInviteEmail("");
+      setInviteMessage("");
+      setInviteOpen(false);
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Failed to send invite");
+    } finally {
+      setInviteSending(false);
+    }
+  };
+
   if (loading) {
     return (
       <PageShell>
@@ -196,22 +234,63 @@ export default function RoomPage() {
 
       <PageContainer>
         {/* Header */}
-        <div className="flex items-center justify-between py-4">
-          <div>
-            <h1 className="text-xl font-semibold">{room?.name}</h1>
-            <span className="text-sm text-muted-foreground">{room?.roomType}</span>
+        <div className="rounded-app border border-border/60 bg-background/70 shadow-elevate px-5 py-4 mt-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold">{room?.name}</h1>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <span className="rounded-full bg-muted px-2.5 py-1 border border-border">{room?.roomType}</span>
+                <span className="rounded-full bg-muted px-2.5 py-1 border border-border">Up to {room?.config?.maxParticipants || room?.maxParticipants || 5} participants</span>
+                <span className="rounded-full bg-muted px-2.5 py-1 border border-border">Realtime editor</span>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button className="px-3 py-1.5 rounded-md bg-muted hover:bg-muted/80" onClick={handleCopyLink}>
+                Copy Link
+              </button>
+              <button className="px-3 py-1.5 rounded-md bg-muted hover:bg-muted/80" onClick={() => setInviteOpen(!inviteOpen)}>
+                Invite by Email
+              </button>
+              <button className="px-3 py-1.5 rounded-md bg-muted hover:bg-muted/80" onClick={() => setSidebarOpen(!sidebarOpen)}>
+                {sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+              </button>
+              <button className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground" onClick={handleLeaveRoom}>
+                Leave Room
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button className="px-3 py-1.5 rounded-md bg-muted hover:bg-muted/80" onClick={() => setSidebarOpen(!sidebarOpen)}>
-              {sidebarOpen ? "Hide sidebar" : "Show sidebar"}
-            </button>
-            <button className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground" onClick={handleLeaveRoom}>
-              Leave Room
-            </button>
-          </div>
+
+          {inviteOpen && (
+            <form onSubmit={handleInvite} className="mt-4 grid gap-3 md:grid-cols-[1.5fr_1fr_auto]">
+              <div className="flex flex-col gap-2">
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="Invite by Gmail (e.g. teammate@gmail.com)"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2"
+                />
+                <input
+                  type="text"
+                  value={inviteMessage}
+                  onChange={(e) => setInviteMessage(e.target.value)}
+                  placeholder="Optional message"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2"
+                />
+              </div>
+              <div className="rounded-app bg-muted/60 border border-border p-3 text-sm text-muted-foreground">
+                Sends a Gmail invite with your meeting link. Make sure SMTP is configured on the server.
+              </div>
+              <div className="flex items-start gap-2">
+                <button type="submit" className="px-4 py-2 rounded-md bg-primary text-primary-foreground" disabled={inviteSending}>
+                  {inviteSending ? "Sending..." : "Send Invite"}
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
-        <div className="grid lg:grid-cols-12 gap-4 pb-6">
+        <div className="grid lg:grid-cols-12 gap-4 pb-10 mt-4">
           {/* Left: Video */}
           <div className="lg:col-span-8 space-y-3">
             <div className="rounded-lg bg-muted ring-1 ring-border/60 overflow-hidden">
