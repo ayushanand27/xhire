@@ -19,6 +19,7 @@ import userRoutes from "./routes/userRoutes.js";
 import testRoutes from "./routes/testRoutes.js";
 import recordingRoutes from "./routes/recordingRoutes.js";
 import streamWebhookRoutes from "./routes/streamWebhookRoutes.js";
+import problemsRoutes from "./routes/problemsRoutes.js";
 
 const app = express();
 
@@ -68,6 +69,7 @@ app.use("/api/rooms/:roomId/activity", activityRoutes);
 app.use("/api/rooms/:roomId/recordings", recordingRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/tests", testRoutes);
+app.use("/api/problems", problemsRoutes);
 app.use("/api/stream/webhook", streamWebhookRoutes);
 
 // make our app ready for deployment

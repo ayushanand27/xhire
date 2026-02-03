@@ -10,6 +10,7 @@ export const roomAPI = {
   deleteRoom: (roomId) => axios.delete(`/api/rooms/${roomId}`),
   joinRoom: (roomId) => axios.post(`/api/rooms/${roomId}/join`),
   leaveRoom: (roomId) => axios.post(`/api/rooms/${roomId}/leave`),
+  inviteToRoom: (roomId, payload) => axios.post(`/api/rooms/${roomId}/invite`, payload),
   getStreamToken: (roomId) => axios.get(`/api/rooms/${roomId}/stream-token`),
   executeCode: (roomId, codeData) =>
     axios.post(`/api/rooms/${roomId}/execute-code`, codeData),
@@ -82,6 +83,7 @@ export const activityAPI = {
 // ============= USER PREFERENCE APIs =============
 
 export const userAPI = {
+  getMe: () => axios.get("/api/user/me"),
   getPreferences: () => axios.get("/api/user/preferences"),
   updatePreferences: (preferencesData) =>
     axios.put("/api/user/preferences", preferencesData),

@@ -8,6 +8,7 @@ import {
   leaveRoom,
   updateRoom,
   deleteRoom,
+  inviteToRoom,
   getStreamToken,
   executeCode,
 } from "../controllers/roomController.js";
@@ -27,6 +28,7 @@ router.delete("/:roomId", deleteRoom);
 // Room participation
 router.post("/:roomId/join", joinRoom);
 router.post("/:roomId/leave", leaveRoom);
+router.post("/:roomId/invite", inviteToRoom);
 
 // Code execution
 router.post("/:roomId/execute-code", executeCode);
