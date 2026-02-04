@@ -1,9 +1,14 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { roomAPI } from "../api/rooms.js";
 import CreateRoomModal from "./CreateRoomModal.jsx";
+import Navbar from "./Navbar.jsx";
+import Footer from "./Footer.jsx";
+import PageShell, { PageContainer } from "./PageShell.jsx";
 import "./RoomGrid.css";
 
 export default function RoomGrid() {
+  const navigate = useNavigate();
   const [rooms, setRooms] = useState([]);
   const [filteredRooms, setFilteredRooms] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -61,41 +66,61 @@ export default function RoomGrid() {
     startIndex + itemsPerPage
   );
 
-  const handleRoomCreated = () => {
+  const handleRoomCreated = (roomId) => {
     setShowCreateModal(false);
-    fetchRooms();
+    if (roomId) {
+      navigate(`/room/${roomId}`);
+    } else {
+      fetchRooms();
+    }
   };
 
   const handleJoinRoom = async (roomId) => {
     try {
       await roomAPI.joinRoom(roomId);
-      // Navigate to room page - would use useNavigate in real implementation
-      window.location.href = `/room/${roomId}`;
+      navigate(`/room/${roomId}`);
     } catch (err) {
-      alert("Failed to join room: " + err.message);
+      // If already a participant, just navigate
+      if (err.response?.status === 400) {
+        navigate(`/room/${roomId}`);
+      } else {
+        alert("Failed to join room: " + (err.response?.data?.error || err.message));
+      }
     }
   };
 
   if (loading) {
     return (
-      <div className="room-grid-container">
-        <div className="loading">Loading rooms...</div>
-      </div>
+      <PageShell>
+        <Navbar />
+        <main className="flex-1 py-8">
+          <PageContainer>
+            <div className="text-muted-foreground">Loading rooms...</div>
+          </PageContainer>
+        </main>
+        <Footer />
+      </PageShell>
     );
   }
 
   return (
-    <div className="room-grid-container">
-      {/* Header */}
-      <div className="room-grid-header">
-        <h1>Collaboration Rooms</h1>
-        <button
-          className="create-room-btn"
-          onClick={() => setShowCreateModal(true)}
-        >
-          + Create Room
-        </button>
-      </div>
+    <PageShell>
+      <Navbar />
+      <main className="flex-1 py-8">
+        <PageContainer>
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-3xl font-bold">Collaboration Rooms</h1>
+              <p className="text-muted-foreground mt-1">Join a room to collaborate with others or create your own</p>
+            </div>
+            <button
+              className="btn btn-primary"
+              onClick={() => setShowCreateModal(true)}
+            >
+              + Create Room
+            </button>
+          </div>
 
       {/* Filters */}
       <div className="room-filters">
@@ -200,7 +225,7 @@ export default function RoomGrid() {
           )}
         </>
       ) : (
-        <div className="no-rooms">
+        <div className="text-center py-12 text-muted-foreground">
           <p>No rooms found. Create one to get started!</p>
         </div>
       )}
@@ -212,6 +237,9 @@ export default function RoomGrid() {
           onRoomCreated={handleRoomCreated}
         />
       )}
-    </div>
+        </PageContainer>
+      </main>
+      <Footer />
+    </PageShell>
   );
 }

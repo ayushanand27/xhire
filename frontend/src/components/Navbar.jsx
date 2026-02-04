@@ -1,77 +1,101 @@
-import { Link, useLocation } from "react-router";
-import { BookOpenIcon, LayoutDashboardIcon, SparklesIcon } from "lucide-react";
-import { UserButton } from "@clerk/clerk-react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useUser, useClerk } from "@clerk/clerk-react";
+import { PageContainer } from "./PageShell.jsx";
+import { LogOutIcon, ZapIcon } from "lucide-react";
 
-function Navbar() {
+export default function Navbar() {
+  const navigate = useNavigate();
   const location = useLocation();
-
-  console.log(location);
+  const { isSignedIn, user } = useUser();
+  const { signOut } = useClerk();
 
   const isActive = (path) => location.pathname === path;
 
-  return (
-    <nav className="bg-base-100/80 backdrop-blur-md border-b border-primary/20 sticky top-0 z-50 shadow-lg">
-      <div className="max-w-7xl mx-auto p-4 flex items-center justify-between">
-        {/* LOGO */}
-        <Link
-          to="/"
-          className="group flex items-center gap-3 hover:scale-105 transition-transform duration-200"
-        >
-          <div className="size-10 rounded-xl bg-gradient-to-r from-primary via-secondary to-accent flex items-center justify-center shadow-lg ">
-            <SparklesIcon className="size-6 text-white" />
-          </div>
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate("/");
+    } catch (_) {}
+  };
 
-          <div className="flex flex-col">
-            <span className="font-black text-xl bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent font-mono tracking-wider">
-              Talent IQ
-            </span>
-            <span className="text-xs text-base-content/60 font-medium -mt-1">Code Together</span>
+  return (
+    <header className="sticky top-0 z-40 border-b border-primary/10 bg-gradient-to-r from-base-100 via-base-100 to-base-200 backdrop-blur-md shadow-md">
+      <PageContainer className="py-4 flex items-center justify-between">
+        {/* Logo */}
+        <Link to="/" className="flex items-center gap-2 group">
+          <div className="p-2 bg-gradient-to-br from-primary to-secondary rounded-lg group-hover:shadow-lg transition-all duration-300 transform group-hover:scale-110">
+            <ZapIcon className="w-5 h-5 text-white" />
           </div>
+          <span className="text-xl font-black bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            xHire
+          </span>
         </Link>
 
-        <div className="flex items-center gap-1">
-          {/* PROBLEMS PAGE LINK */}
-          <Link
-            to={"/problems"}
-            className={`px-4 py-2.5 rounded-lg transition-all duration-200 
-              ${
-                isActive("/problems")
-                  ? "bg-primary text-primary-content"
-                  : "hover:bg-base-200 text-base-content/70 hover:text-base-content"
-              }
-              
-              `}
-          >
-            <div className="flex items-center gap-x-2.5">
-              <BookOpenIcon className="size-4" />
-              <span className="font-medium hidden sm:inline">Problems</span>
-            </div>
-          </Link>
+        {/* Navigation */}
+        <nav className="hidden md:flex items-center gap-8">
+          {isSignedIn && (
+            <>
+              <NavLink to="/dashboard" isActive={isActive("/dashboard")} label="Dashboard" />
+              <NavLink to="/practice" isActive={isActive("/practice")} label="Practice" />
+              <NavLink to="/problems" isActive={isActive("/problems")} label="Problems" />
+            </>
+          )}
+        </nav>
 
-          {/* DASHBORD PAGE LINK */}
-          <Link
-            to={"/dashboard"}
-            className={`px-4 py-2.5 rounded-lg transition-all duration-200 
-              ${
-                isActive("/dashboard")
-                  ? "bg-primary text-primary-content"
-                  : "hover:bg-base-200 text-base-content/70 hover:text-base-content"
-              }
-              
-              `}
-          >
-            <div className="flex items-center gap-x-2.5">
-              <LayoutDashboardIcon className="size-4" />
-              <span className="font-medium hidden sm:inline">Dashbord</span>
-            </div>
-          </Link>
-
-          <div className="ml-4 mt-2">
-            <UserButton />
-          </div>
+        {/* Auth Buttons */}
+        <div className="flex items-center gap-3">
+          {!isSignedIn ? (
+            <>
+              <Link
+                to="/login"
+                className="px-4 py-2 rounded-lg text-sm font-medium text-foreground hover:bg-base-200 transition-all duration-300 transform hover:scale-105 active:scale-95"
+              >
+                Log in
+              </Link>
+              <Link
+                to="/register"
+                className="px-4 py-2 rounded-lg text-sm font-bold bg-gradient-to-r from-primary to-secondary text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95"
+              >
+                Get Started
+              </Link>
+            </>
+          ) : (
+            <>
+              <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-primary to-secondary flex items-center justify-center text-white text-sm font-bold">
+                  {user?.firstName?.[0]?.toUpperCase() || "U"}
+                </div>
+                <span className="text-sm font-medium hidden md:inline">{user?.firstName}</span>
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-base-300 hover:bg-base-400 text-foreground flex items-center gap-2 transition-all duration-300 transform hover:scale-105 active:scale-95"
+              >
+                <LogOutIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">Sign out</span>
+              </button>
+            </>
+          )}
         </div>
-      </div>
-    </nav>
+      </PageContainer>
+    </header>
   );
 }
-export default Navbar;
+
+function NavLink({ to, isActive, label }) {
+  return (
+    <Link
+      to={to}
+      className={`relative px-3 py-2 text-sm font-semibold transition-all duration-300 ${
+        isActive
+          ? "text-primary"
+          : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {label}
+      {isActive && (
+        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-primary to-secondary rounded-full"></div>
+      )}
+    </Link>
+  );
+}

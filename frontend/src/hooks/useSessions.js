@@ -6,8 +6,27 @@ export const useCreateSession = () => {
   const result = useMutation({
     mutationKey: ["createSession"],
     mutationFn: sessionApi.createSession,
+    retry: (failureCount, error) => {
+      // Retry once for timeout errors, but not for other errors
+      if (failureCount >= 1) return false;
+      const isTimeout = error.code === 'ECONNABORTED' || error.response?.status === 504;
+      return isTimeout;
+    },
+    retryDelay: 1000,
     onSuccess: () => toast.success("Session created successfully!"),
-    onError: (error) => toast.error(error.response?.data?.message || "Failed to create room"),
+    onError: (error) => {
+      const message = error.response?.data?.message || error.message || "Failed to create session";
+      // Show more specific error messages
+      if (error.code === 'ECONNABORTED' || error.response?.status === 504) {
+        toast.error("Session creation timed out. Please check your internet connection and try again.", { duration: 6000 });
+      } else if (error.response?.status === 401) {
+        toast.error("Authentication failed. Please log in again.");
+      } else if (message.includes("Stream")) {
+        toast.error("Unable to provision video call. Please try again.", { duration: 6000 });
+      } else {
+        toast.error(message, { duration: 5000 });
+      }
+    },
   });
 
   return result;

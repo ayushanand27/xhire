@@ -2,14 +2,20 @@ import mongoose from "mongoose";
 
 const sessionSchema = new mongoose.Schema(
   {
+    title: {
+      type: String,
+      default: "Live Session",
+      trim: true,
+      maxlength: 80,
+    },
     problem: {
       type: String,
-      required: true,
+      default: "",
     },
     difficulty: {
       type: String,
       enum: ["easy", "medium", "hard"],
-      required: true,
+      default: null,
     },
     host: {
       type: mongoose.Schema.Types.ObjectId,

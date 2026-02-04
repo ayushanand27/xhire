@@ -9,11 +9,17 @@ export const useRoomSocket = (roomId, userId, userName) => {
   const socketRef = useRef(null);
   const connectedRef = useRef(false);
 
+  const socketBaseUrl =
+    import.meta.env.VITE_SERVER_URL ||
+    (import.meta.env.VITE_API_URL
+      ? import.meta.env.VITE_API_URL.trim().replace(/\/+$/, "").replace(/\/api\/?$/, "")
+      : "http://localhost:4000");
+
   // Initialize socket connection
   useEffect(() => {
     if (!roomId || !userId) return;
 
-    socketRef.current = io(import.meta.env.VITE_API_URL || "http://localhost:3000", {
+    socketRef.current = io(socketBaseUrl, {
       auth: {
         userId,
         roomId,
@@ -43,7 +49,7 @@ export const useRoomSocket = (roomId, userId, userName) => {
         socketRef.current.disconnect();
       }
     };
-  }, [roomId, userId]);
+  }, [roomId, userId, socketBaseUrl]);
 
   // ========================
   // CODE EDITOR FUNCTIONS
@@ -207,7 +213,13 @@ export const useRoomEvents = (roomId, callback) => {
   useEffect(() => {
     if (!roomId) return;
 
-    socketRef.current = io(import.meta.env.VITE_API_URL || "http://localhost:3000");
+    const baseUrl =
+      import.meta.env.VITE_SERVER_URL ||
+      (import.meta.env.VITE_API_URL
+        ? import.meta.env.VITE_API_URL.trim().replace(/\/+$/, "").replace(/\/api\/?$/, "")
+        : "http://localhost:4000");
+
+    socketRef.current = io(baseUrl);
 
     // All possible room events
     const events = [

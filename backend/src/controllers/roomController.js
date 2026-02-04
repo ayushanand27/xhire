@@ -1,5 +1,7 @@
 import { Room } from "../models/Room.js";
 import { streamClient } from "../lib/stream.js";
+import { ENV } from "../lib/env.js";
+import { sendInviteEmail } from "../lib/email.js";
 
 // CREATE A NEW ROOM
 export const createRoom = async (req, res) => {
@@ -214,6 +216,44 @@ export const leaveRoom = async (req, res) => {
   } catch (error) {
     console.error("Error leaving room:", error);
     res.status(500).json({ error: "Failed to leave room" });
+  }
+};
+
+// INVITE USER BY EMAIL
+export const inviteToRoom = async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const { email, message } = req.body;
+
+    if (!email || !email.includes("@")) {
+      return res.status(400).json({ error: "Valid email is required" });
+    }
+
+    const room = await Room.findById(roomId).populate("creator", "name email");
+    if (!room) {
+      return res.status(404).json({ error: "Room not found" });
+    }
+
+    // Only participants can invite
+    if (!room.isParticipant(req.user._id)) {
+      return res.status(403).json({ error: "You are not a participant in this room" });
+    }
+
+    const roomLink = `${ENV.CLIENT_URL}/room/${roomId}`;
+    const inviterName = req.user?.name || req.user?.email || "xHire";
+
+    await sendInviteEmail({
+      to: email,
+      roomName: room.name,
+      inviterName,
+      roomLink,
+      message,
+    });
+
+    res.json({ message: "Invite sent" });
+  } catch (error) {
+    console.error("Error sending invite:", error);
+    res.status(500).json({ error: "Failed to send invite" });
   }
 };
 

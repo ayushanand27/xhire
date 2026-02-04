@@ -1,5 +1,5 @@
 {
-  "name": "talent-iq",
+  "name": "xHire",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -13,5 +13,8 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "Multi-user collaboration platform for live interviews and coding sessions"
+  "description": "Multi-user collaboration platform for live interviews and coding sessions",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
 }
