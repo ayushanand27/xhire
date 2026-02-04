@@ -16,7 +16,7 @@ function DashboardPage() {
   const navigate = useNavigate();
   const { user } = useUser();
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [roomConfig, setRoomConfig] = useState({ problem: "", difficulty: "" });
+  const [roomConfig, setRoomConfig] = useState({ title: "" });
 
   const createSessionMutation = useCreateSession();
 
@@ -24,16 +24,14 @@ function DashboardPage() {
   const { data: recentSessionsData, isLoading: loadingRecentSessions } = useMyRecentSessions();
 
   const handleCreateRoom = () => {
-    if (!roomConfig.problem || !roomConfig.difficulty) return;
-
     createSessionMutation.mutate(
       {
-        problem: roomConfig.problem,
-        difficulty: roomConfig.difficulty.toLowerCase(),
+        title: roomConfig.title,
       },
       {
         onSuccess: (data) => {
           setShowCreateModal(false);
+          setRoomConfig({ title: "" });
           navigate(`/session/${data.session._id}`);
         },
       }
@@ -53,10 +51,14 @@ function DashboardPage() {
     <PageShell>
       <Navbar />
 
-      {/* Hero/Welcome */}
-      <section className="border-b border-border/40 bg-background/60 backdrop-blur">
+      {/* Hero/Welcome with gradient backdrop */}
+      <section className="relative border-b border-primary/10 bg-gradient-to-b from-base-200/50 via-base-100/50 to-transparent backdrop-blur-sm overflow-hidden">
+        {/* Animated background blur elements */}
+        <div className="absolute top-0 right-20 w-72 h-72 bg-gradient-to-br from-primary/20 to-secondary/10 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute -bottom-32 left-0 w-96 h-96 bg-gradient-to-tr from-accent/15 to-transparent rounded-full blur-3xl" />
+        
         <PageContainer>
-          <div className="py-8">
+          <div className="py-8 relative z-10">
             <WelcomeSection onCreateSession={() => setShowCreateModal(true)} />
           </div>
         </PageContainer>
