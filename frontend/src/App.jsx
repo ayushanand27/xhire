@@ -6,6 +6,7 @@ import DashboardPage from "./pages/DashboardPage";
 import ProblemPage from "./pages/ProblemPage";
 import ProblemsPage from "./pages/ProblemsPage";
 import SessionPage from "./pages/SessionPage";
+import PracticePage from "./pages/PracticePage";
 import RoomGrid from "./components/RoomGrid.jsx";
 import RoomPage from "./pages/RoomPage.jsx";
 import Login from "./pages/Login.jsx";
@@ -23,7 +24,10 @@ function App() {
   // Set the Clerk token getter for axios
   useEffect(() => {
     if (isSignedIn && getToken) {
+      console.log("🔐 Setting Clerk token getter in App.jsx");
       setClerkToken(getToken);
+    } else {
+      console.log("⚠️ Clerk token getter not set:", { isSignedIn, hasGetToken: !!getToken });
     }
   }, [isSignedIn, getToken]);
 
@@ -48,11 +52,13 @@ function App() {
         <Route path="/problem/:id" element={isSignedIn ? <ProblemPage /> : <Navigate to={"/login"} />} />
         <Route path="/session/:id" element={isSignedIn ? <SessionPage /> : <Navigate to={"/login"} />} />
 
+        {/* Practice mode - standalone problem solving */}
+        <Route path="/practice" element={isSignedIn ? <PracticePage /> : <Navigate to={"/login"} />} />
+
         {/* Collaboration room routes */}
         <Route path="/rooms" element={isSignedIn ? <RoomGrid /> : <Navigate to={"/login"} />} />
         <Route path="/room/:roomId" element={isSignedIn ? <RoomPage /> : <Navigate to={"/login"} />} />
-        {/* Practice alias */}
-        <Route path="/practice" element={isSignedIn ? <ProblemsPage /> : <Navigate to={"/login"} />} />
+
         {/* Catch-all */}
         <Route path="*" element={isSignedIn ? <Navigate to="/dashboard" replace /> : <NotFound />} />
       </Routes>

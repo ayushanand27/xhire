@@ -133,7 +133,7 @@ function SessionPage() {
     if (!problemData) {
       setOutput({
         success: false,
-        error: "Problem metadata not loaded, cannot generate tests.",
+        error: "No practice problem is selected for this session. Use Practice to run problem tests.",
       });
       return;
     }
@@ -200,16 +200,24 @@ function SessionPage() {
                     <div className="flex items-start justify-between mb-3">
                       <div>
                         <h1 className="text-3xl font-bold text-foreground">
-                          {session?.problem || "Loading..."}
+                          {session?.title || session?.problem || "Loading..."}
                         </h1>
-                        {loadingProblem && (
-                          <p className="text-muted-foreground mt-1">Loading problem…</p>
-                        )}
-                        {errorProblem && !loadingProblem && (
-                          <p className="text-error mt-1">{errorProblem}</p>
-                        )}
-                        {problemData?.category && !loadingProblem && (
-                          <p className="text-muted-foreground mt-1">{problemData.category}</p>
+                        {session?.problem ? (
+                          <>
+                            {loadingProblem && (
+                              <p className="text-muted-foreground mt-1">Loading problem…</p>
+                            )}
+                            {errorProblem && !loadingProblem && (
+                              <p className="text-error mt-1">{errorProblem}</p>
+                            )}
+                            {problemData?.category && !loadingProblem && (
+                              <p className="text-muted-foreground mt-1">{problemData.category}</p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-muted-foreground mt-2">
+                            This is a live collaboration session. Use <span className="font-semibold">Practice</span> for coding questions.
+                          </p>
                         )}
                         <p className="text-muted-foreground mt-2">
                           Host: {session?.host?.name || "Loading..."} •{" "}
@@ -218,14 +226,16 @@ function SessionPage() {
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <span
-                          className={`badge badge-lg ${getDifficultyBadgeClass(
-                            session?.difficulty
-                          )}`}
-                        >
-                          {session?.difficulty.slice(0, 1).toUpperCase() +
-                            session?.difficulty.slice(1) || "Easy"}
-                        </span>
+                        {!!session?.difficulty && (
+                          <span
+                            className={`badge badge-lg ${getDifficultyBadgeClass(
+                              session?.difficulty
+                            )}`}
+                          >
+                            {session?.difficulty.slice(0, 1).toUpperCase() +
+                              session?.difficulty.slice(1)}
+                          </span>
+                        )}
                         {isHost && session?.status === "active" && (
                           <button
                             onClick={handleEndSession}
@@ -248,6 +258,15 @@ function SessionPage() {
                   </div>
 
                   <div className="p-6 space-y-6">
+                    {!session?.problem && (
+                      <div className="bg-background rounded-app shadow-elevate p-5 border border-border">
+                        <h2 className="text-xl font-bold mb-2 text-foreground">Live Collaboration</h2>
+                        <p className="text-sm text-muted-foreground">
+                          This session isn’t tied to a coding question. Use the editor and call to collaborate, and use <span className="font-semibold">Practice</span> for problem-solving.
+                        </p>
+                      </div>
+                    )}
+
                     {/* problem desc */}
                     {problemData?.description && (
                       <div className="bg-background rounded-app shadow-elevate p-5 border border-border">

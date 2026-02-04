@@ -37,6 +37,8 @@ app.use(express.json());
 const allowedOrigins = new Set([
   ENV.CLIENT_URL,
   "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:3000",
   "http://localhost:3001",
 ]);
 
@@ -51,7 +53,17 @@ app.use(
     credentials: true,
   })
 );
-app.use(clerkMiddleware()); // this adds auth field to request object: req.auth()
+
+// Log Clerk configuration on startup
+console.log("🔐 Clerk configuration:");
+console.log("   Publishable Key:", ENV.CLERK_PUBLISHABLE_KEY ? "✅ Set" : "❌ Missing");
+console.log("   Secret Key:", ENV.CLERK_SECRET_KEY ? "✅ Set" : "❌ Missing");
+
+// Clerk middleware - explicitly configured with secret key for Bearer token support
+app.use(clerkMiddleware({
+  secretKey: ENV.CLERK_SECRET_KEY,
+  publishableKey: ENV.CLERK_PUBLISHABLE_KEY
+}));
 
 app.use("/api/inngest", serve({ client: inngest, functions }));
 
@@ -84,9 +96,14 @@ if (ENV.NODE_ENV === "production") {
 const startServer = async () => {
   try {
     // Start server immediately (for health checks)
-    server.listen(ENV.PORT, () => {
+    server.listen(ENV.PORT, "0.0.0.0", () => {
       console.log("✅ Server started on port:", ENV.PORT);
       console.log("✅ Health check ready at /health");
+    });
+
+    server.on("error", (error) => {
+      console.error("❌ Server error:", error);
+      process.exit(1);
     });
 
     // Connect to DB in the background
@@ -101,6 +118,7 @@ const startServer = async () => {
     }
   } catch (error) {
     console.error("❌ Fatal error starting server:", error.message);
+    console.error("Full error:", error);
     process.exit(1);
   }
 };

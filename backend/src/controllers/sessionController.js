@@ -1,45 +1,121 @@
 import { chatClient, streamClient } from "../lib/stream.js";
 import { Session } from "../models/Session.js";
 
-export async function createSession(req, res) {
-  try {
-    const { problem, difficulty } = req.body;
-    const userId = req.user._id;
-    const clerkId = req.user.clerkId;
+const withTimeout = (promise, ms, label) => {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
+  });
 
-    if (!problem || !difficulty) {
-      return res.status(400).json({ message: "Problem and difficulty are required" });
-    }
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+};
+
+const getSafeErrorMessage = (error) => {
+  const msg = error?.message || "Unknown error";
+  if (msg.includes("STREAM_API_KEY") || msg.includes("STREAM_API_SECRET")) {
+    return "Stream is not configured on the server. Set STREAM_API_KEY and STREAM_API_SECRET.";
+  }
+  if (msg.toLowerCase().includes("timed out")) {
+    return "Session provisioning timed out. Please try again.";
+  }
+  return "Internal Server Error";
+};
+
+export async function createSession(req, res) {
+  let callId = null;
+  let clerkId = null;
+  let session = null;
+  try {
+    const { title, problem, difficulty } = req.body;
+    const userId = req.user._id;
+    clerkId = req.user.clerkId;
+
+    console.log(`\ud83d\udc64 User ${req.user.email} creating session...`);
+
+    const sessionTitle =
+      (typeof title === "string" && title.trim()) ||
+      (typeof problem === "string" && problem.trim() ? `${problem.trim()} Session` : "Live Session");
 
     // generate a unique call id for stream video
-    const callId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    callId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
     // create session in db
-    const session = await Session.create({ problem, difficulty, host: userId, callId });
+    const payload = { title: sessionTitle, host: userId, callId };
+    if (typeof problem === "string" && problem.trim()) payload.problem = problem.trim();
+    if (typeof difficulty === "string" && difficulty.trim()) payload.difficulty = difficulty.trim().toLowerCase();
 
-    // create stream video call
+    session = await Session.create(payload);
+
+    // Provision Stream resources with a hard timeout so the request never hangs.
+    // Frontend axios timeout is 20s; keep server-side under that.
     const streamClientInstance = streamClient.getInstance();
-    await streamClientInstance.video.call("default", callId).getOrCreate({
-      data: {
-        created_by_id: clerkId,
-        custom: { problem, difficulty, sessionId: session._id.toString() },
-      },
-    });
-
-    // chat messaging
     const chatClientInstance = chatClient.getInstance();
-    const channel = chatClientInstance.channel("messaging", callId, {
-      name: `${problem} Session`,
-      created_by_id: clerkId,
-      members: [clerkId],
+
+    console.log(`🎥 Provisioning Stream resources for session ${session._id}...`);
+    const startTime = Date.now();
+
+    await withTimeout(
+      Promise.all([
+        streamClientInstance.video.call("default", callId).getOrCreate({
+          data: {
+            created_by_id: clerkId,
+            custom: {
+              sessionId: session._id.toString(),
+              title: sessionTitle,
+              problem: session.problem || null,
+              difficulty: session.difficulty || null,
+            },
+          },
+        }),
+        chatClientInstance
+          .channel("messaging", callId, {
+            name: sessionTitle,
+            created_by_id: clerkId,
+            members: [clerkId],
+          })
+          .create(),
+      ]),
+      15000,
+      "Stream provisioning"
+    );
+
+    const elapsed = Date.now() - startTime;
+    console.log(`✅ Stream resources provisioned in ${elapsed}ms`);
+
+    return res.status(201).json({ session });
+  } catch (error) {
+    console.log("❌ Error in createSession controller:", error.message);
+    console.log("Error details:", {
+      name: error.name,
+      code: error.code,
+      stack: error.stack?.split('\n').slice(0, 3).join('\n')
     });
 
-    await channel.create();
+    // Best-effort cleanup of any partially-provisioned Stream resources.
+    if (callId) {
+      try {
+        const streamClientInstance = streamClient.getInstance();
+        const chatClientInstance = chatClient.getInstance();
+        const call = streamClientInstance.video.call("default", callId);
+        const channel = chatClientInstance.channel("messaging", callId);
+        await withTimeout(Promise.allSettled([call.delete({ hard: true }), channel.delete()]), 8000, "Stream cleanup");
+      } catch (cleanupError) {
+        console.warn("Stream cleanup skipped/failed:", cleanupError.message);
+      }
+    }
 
-    res.status(201).json({ session });
-  } catch (error) {
-    console.log("Error in createSession controller:", error.message);
-    res.status(500).json({ message: "Internal Server Error" });
+    // Avoid leaving a dangling DB session when Stream provisioning fails.
+    if (session?._id) {
+      try {
+        await Session.deleteOne({ _id: session._id });
+      } catch (cleanupError) {
+        console.warn("Failed to cleanup session after create failure:", cleanupError.message);
+      }
+    }
+
+    const safeMessage = getSafeErrorMessage(error);
+    const status = safeMessage.includes("timed out") ? 504 : 500;
+    return res.status(status).json({ message: safeMessage });
   }
 }
 
@@ -120,12 +196,14 @@ export async function joinSession(req, res) {
 
     const chatClientInstance = chatClient.getInstance();
     const channel = chatClientInstance.channel("messaging", session.callId);
-    await channel.addMembers([clerkId]);
+    await withTimeout(channel.addMembers([clerkId]), 8000, "Chat join");
 
     res.status(200).json({ session });
   } catch (error) {
     console.log("Error in joinSession controller:", error.message);
-    res.status(500).json({ message: "Internal Server Error" });
+    const safeMessage = getSafeErrorMessage(error);
+    const status = safeMessage.includes("timed out") ? 504 : 500;
+    res.status(status).json({ message: safeMessage });
   }
 }
 
@@ -150,13 +228,15 @@ export async function endSession(req, res) {
 
     // delete stream video call
     const streamClientInstance = streamClient.getInstance();
-    const call = streamClientInstance.video.call("default", session.callId);
-    await call.delete({ hard: true });
-
-    // delete stream chat channel
     const chatClientInstance = chatClient.getInstance();
+    const call = streamClientInstance.video.call("default", session.callId);
     const channel = chatClientInstance.channel("messaging", session.callId);
-    await channel.delete();
+
+    await withTimeout(
+      Promise.all([call.delete({ hard: true }), channel.delete()]),
+      12000,
+      "Session cleanup"
+    );
 
     session.status = "completed";
     await session.save();
@@ -164,6 +244,8 @@ export async function endSession(req, res) {
     res.status(200).json({ session, message: "Session ended successfully" });
   } catch (error) {
     console.log("Error in endSession controller:", error.message);
-    res.status(500).json({ message: "Internal Server Error" });
+    const safeMessage = getSafeErrorMessage(error);
+    const status = safeMessage.includes("timed out") ? 504 : 500;
+    res.status(status).json({ message: safeMessage });
   }
 }

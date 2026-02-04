@@ -2,7 +2,10 @@ import axiosInstance from "../lib/axios";
 
 export const sessionApi = {
   createSession: async (data) => {
-    const response = await axiosInstance.post("/api/sessions", data);
+    const response = await axiosInstance.post("/api/sessions", data, {
+      skipErrorToast: true, // Let the mutation handle error display
+      timeout: 20000, // Increase timeout for Stream provisioning
+    });
     return response.data;
   },
 
