@@ -9,6 +9,8 @@ import { ENV } from "./lib/env.js";
 import { connectDB } from "./lib/db.js";
 import { inngest, functions } from "./lib/inngest.js";
 import { initializeSocket } from "./lib/socket.js";
+import { errorHandler } from "./middleware/errorHandler.js";
+import { requestLogger, securityHeaders } from "./middleware/logger.js";
 
 import chatRoutes from "./routes/chatRoutes.js";
 import sessionRoutes from "./routes/sessionRoute.js";
@@ -54,6 +56,10 @@ app.use(
   })
 );
 
+// Security and logging middleware
+app.use(securityHeaders);
+app.use(requestLogger);
+
 // Log Clerk configuration on startup
 console.log("🔐 Clerk configuration:");
 console.log("   Publishable Key:", ENV.CLERK_PUBLISHABLE_KEY ? "✅ Set" : "❌ Missing");
@@ -92,6 +98,9 @@ if (ENV.NODE_ENV === "production") {
     res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
   });
 }
+
+// Global error handler MUST be last
+app.use(errorHandler);
 
 const startServer = async () => {
   try {

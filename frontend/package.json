@@ -28,7 +28,8 @@
     "socket.io-client": "^4.8.3",
     "stream-chat": "^9.23.0",
     "stream-chat-react": "^13.9.0",
-    "tailwindcss": "^4.1.14"
+    "tailwindcss": "^4.1.14",
+    "xHire": "file:.."
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

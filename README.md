@@ -29,35 +29,30 @@ git clone <repo-url>
 cd xhire
 
 # Install dependencies
-npm install
-cd backend && npm install
-cd ../frontend && npm install
+npm run install-deps
 
-# Configure environment
-# backend/.env
-PORT=4000
-DB_URL=mongodb+srv://...
-CLERK_SECRET_KEY=...
-STREAM_API_KEY=...
-STREAM_API_SECRET=...
-
-# frontend/.env.local
-VITE_CLERK_PUBLISHABLE_KEY=...
-VITE_API_URL=http://localhost:4000/api
-VITE_SERVER_URL=http://localhost:4000
+# Configure environment (see SETUP_GUIDE.md for detailed instructions)
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
+# Edit .env files with your configuration
 ```
 
 ### Run Servers
 
 ```bash
 # Terminal 1 - Backend
-cd backend && npm start
+npm run dev --prefix backend
 
 # Terminal 2 - Frontend
-cd frontend && npm run dev
+npm run dev --prefix frontend
 ```
 
 Open: `http://localhost:5173`
+
+## 📖 Documentation
+
+- **[SETUP_GUIDE.md](./SETUP_GUIDE.md)** - Detailed setup instructions, improvements, and troubleshooting
+- **[PROJECT IMPROVEMENTS](#recent-improvements)** - See below
 
 ## 📁 Project Structure
 
@@ -140,6 +135,19 @@ VITE_CLERK_PUBLISHABLE_KEY=your_key
 VITE_API_URL=http://localhost:4000/api
 VITE_SERVER_URL=http://localhost:4000
 ```
+
+## ✨ Recent Improvements
+
+### May 13, 2026
+✅ **Environment Variable Validation** - Server validates required config on startup  
+✅ **Global Error Handler** - Centralized error handling across all routes  
+✅ **Request Logging** - Complete request/response logging for debugging  
+✅ **Security Headers** - Added XSS, MIME-type, and frame protection  
+✅ **Input Validation Middleware** - Reusable validation utilities  
+✅ **Enhanced .env Examples** - Clear, documented environment templates  
+✅ **Setup Guide** - Comprehensive SETUP_GUIDE.md with troubleshooting  
+
+👉 See [SETUP_GUIDE.md](./SETUP_GUIDE.md) for detailed documentation
 
 ## 🚀 Deployment
 

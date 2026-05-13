@@ -2,6 +2,29 @@ import dotenv from "dotenv";
 
 dotenv.config({ quiet: true });
 
+const requiredEnvVars = [
+  "CLERK_PUBLISHABLE_KEY",
+  "CLERK_SECRET_KEY",
+  "STREAM_API_KEY",
+  "STREAM_API_SECRET",
+];
+
+const validateEnv = () => {
+  const missing = [];
+  
+  for (const varName of requiredEnvVars) {
+    if (!process.env[varName]) {
+      missing.push(varName);
+    }
+  }
+  
+  if (missing.length > 0) {
+    console.error("❌ Missing required environment variables:");
+    missing.forEach(v => console.error(`   - ${v}`));
+    console.error("\n⚠️  Some features may be unavailable. Check .env file.");
+  }
+};
+
 export const ENV = {
   PORT: process.env.PORT || "4000",
   DB_URL: process.env.DB_URL,
@@ -20,3 +43,6 @@ export const ENV = {
   CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY,
   CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
 };
+
+// Validate on module load
+validateEnv();
