@@ -75,6 +75,9 @@ export const protectRoute = async (req, res, next) => {
             : clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0] || "User",
           email: clerkUser.emailAddresses[0]?.emailAddress || "",
           profileImage: clerkUser.imageUrl || "",
+          role: "candidate",
+          skills: [],
+          yearsOfExperience: 0,
         });
         console.log("✅ Auto-created user:", user.email);
       } catch (createError) {

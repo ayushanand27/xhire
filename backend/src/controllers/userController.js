@@ -1,4 +1,5 @@
 import UserPreferences from "../models/UserPreferences.js";
+import { User } from "../models/User.js";
 
 // Get current authenticated user (for frontend identity bridging)
 export const getMe = async (req, res) => {
@@ -8,7 +9,45 @@ export const getMe = async (req, res) => {
     name: req.user.name,
     email: req.user.email,
     profileImage: req.user.profileImage,
+    role: req.user.role,
+    skills: req.user.skills || [],
+    yearsOfExperience: req.user.yearsOfExperience || 0,
   });
+};
+
+export const updateMyProfile = async (req, res) => {
+  try {
+    const { role, skills, yearsOfExperience } = req.body;
+
+    if (role && !["candidate", "recruiter"].includes(role)) {
+      return res.status(400).json({ error: "role must be candidate or recruiter" });
+    }
+
+    if (role) req.user.role = role;
+    if (Array.isArray(skills)) req.user.skills = skills.map((s) => String(s).trim()).filter(Boolean);
+
+    if (typeof yearsOfExperience !== "undefined") {
+      const numericYoe = Number(yearsOfExperience);
+      if (Number.isNaN(numericYoe) || numericYoe < 0 || numericYoe > 60) {
+        return res.status(400).json({ error: "yearsOfExperience must be a number between 0 and 60" });
+      }
+      req.user.yearsOfExperience = numericYoe;
+    }
+
+    await req.user.save();
+
+    return res.json({
+      id: req.user._id,
+      name: req.user.name,
+      email: req.user.email,
+      profileImage: req.user.profileImage,
+      role: req.user.role,
+      skills: req.user.skills,
+      yearsOfExperience: req.user.yearsOfExperience,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
 };
 
 // Get user preferences
@@ -201,5 +240,37 @@ export const getBlockedUsers = async (req, res) => {
     res.json({ blockedUsers: preferences.blockedUsers });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+// Recruiter/admin directory view
+export const getUserDirectory = async (req, res) => {
+  try {
+    if (!["recruiter", "admin"].includes(req.user.role)) {
+      return res.status(403).json({ error: "Recruiter access required" });
+    }
+
+    const { role, search } = req.query;
+    const filter = {};
+
+    if (role && ["candidate", "recruiter", "admin"].includes(role)) {
+      filter.role = role;
+    }
+
+    if (search?.trim()) {
+      filter.$or = [
+        { name: { $regex: search.trim(), $options: "i" } },
+        { email: { $regex: search.trim(), $options: "i" } },
+      ];
+    }
+
+    const users = await User.find(filter)
+      .select("name email profileImage role skills yearsOfExperience")
+      .sort({ createdAt: -1 })
+      .limit(200);
+
+    return res.json({ users });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
   }
 };

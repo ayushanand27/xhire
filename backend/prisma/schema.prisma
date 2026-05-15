@@ -1,0 +1,232 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== Models ====================
+
+// Users — Candidates, Recruiters, Admins
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  email     String   @unique
+  name      String?
+  role      Role     @default(CANDIDATE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  resumes         Resume[]
+  jobDescriptions JobDescription[]
+  candidateSessions Session[] @relation("candidateSessions")
+  recruiterSessions Session[] @relation("recruiterSessions")
+}
+
+enum Role {
+  CANDIDATE
+  RECRUITER
+  ADMIN
+}
+
+// Resumes — PDF uploads + extracted data
+model Resume {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  storagePath   String   // Supabase Storage path
+  filename      String?
+  extractedText String?  @db.Text
+  skills        String[] // JSON array
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  chunks        ResumeChunk[]
+  sessions      Session[]
+
+  @@index([userId])
+}
+
+// Resume Chunks — RAG embedding storage
+model ResumeChunk {
+  id        String   @id @default(cuid())
+  resumeId  String
+  resume    Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  
+  content   String   @db.Text
+  embedding String?  // pgvector stored as text (1536-dim)
+  chunkIndex Int?
+  
+  createdAt DateTime @default(now())
+
+  @@index([resumeId])
+}
+
+// Job Descriptions
+model JobDescription {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title         String?
+  company       String?
+  content       String   @db.Text
+  skillsRequired String[] // JSON array
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  sessions      Session[]
+
+  @@index([userId])
+}
+
+// Interview Sessions
+model Session {
+  id            String     @id @default(cuid())
+  candidateId   String?
+  candidate     User?      @relation("candidateSessions", fields: [candidateId], references: [id])
+  
+  recruiterId   String?
+  recruiter     User?      @relation("recruiterSessions", fields: [recruiterId], references: [id])
+  
+  resumeId      String?
+  resume        Resume?    @relation(fields: [resumeId], references: [id])
+  
+  jdId          String?
+  jd            JobDescription? @relation(fields: [jdId], references: [id])
+  
+  type          SessionType @default(MOCK)
+  status        SessionStatus @default(PENDING)
+  
+  streamRoomId  String?    // Stream Video room ID (proctored)
+  warningCount  Int        @default(0)
+  
+  startedAt     DateTime?
+  endedAt       DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  // Relations
+  messages      Message[]
+  proctorEvents ProctorEvent[]
+  evaluation    Evaluation?
+
+  @@index([candidateId])
+  @@index([recruiterId])
+  @@index([resumeId])
+}
+
+enum SessionType {
+  MOCK
+  PROCTORED
+}
+
+enum SessionStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  TERMINATED
+}
+
+// Conversation Messages
+model Message {
+  id            String   @id @default(cuid())
+  sessionId     String
+  session       Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  role          MessageRole @default(AI)
+  content       String   @db.Text
+  transcriptConf Float?   // Deepgram confidence
+  audioDuration Float?   // in seconds
+  
+  createdAt     DateTime @default(now())
+
+  @@index([sessionId])
+}
+
+enum MessageRole {
+  AI
+  CANDIDATE
+}
+
+// Proctoring Events
+model ProctorEvent {
+  id          String   @id @default(cuid())
+  sessionId   String
+  session     Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  eventType   String   // 'no_face', 'multiple_faces', 'gaze_off', 'tab_switch', etc.
+  severity    EventSeverity
+  warningNum  Int?     // 1, 2, or 3
+  metadata    String?  @db.JsonB
+  
+  createdAt   DateTime @default(now())
+
+  @@index([sessionId])
+}
+
+enum EventSeverity {
+  WARNING
+  SEVERE
+}
+
+// Evaluations
+model Evaluation {
+  id                 String   @id @default(cuid())
+  sessionId          String   @unique
+  session            Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  technicalScore    Int?     // 0-100
+  communicationScore Int?     // 0-100
+  confidenceScore   Int?     // 0-100
+  behavioralScore   Int?     // 0-100
+  
+  strengths         String[] // JSON array
+  weaknesses        String[] // JSON array
+  improvements      String[] // JSON array
+  detailedFeedback  String?  @db.Text
+  reportPath        String?  // Supabase Storage path
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([sessionId])
+}
+
+// Job Queue for async evaluations
+model Job {
+  id        String   @id @default(cuid())
+  type      String   // 'evaluate', 'generate_report', etc.
+  status    JobStatus @default(PENDING)
+  payload   String   @db.JsonB
+  result    String?  @db.JsonB
+  error     String?
+  
+  attempts  Int      @default(0)
+  maxRetries Int     @default(3)
+  
+  processedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([type])
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}

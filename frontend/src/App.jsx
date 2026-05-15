@@ -12,6 +12,8 @@ import RoomPage from "./pages/RoomPage.jsx";
 import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
 import NotFound from "./pages/NotFound.jsx";
+import MockInterviewPage from "./pages/MockInterviewPage.jsx";
+import RecruiterDashboardPage from "./pages/RecruiterDashboardPage.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import { setClerkToken } from "./lib/axios.js";
 
@@ -58,6 +60,10 @@ function App() {
         {/* Collaboration room routes */}
         <Route path="/rooms" element={isSignedIn ? <RoomGrid /> : <Navigate to={"/login"} />} />
         <Route path="/room/:roomId" element={isSignedIn ? <RoomPage /> : <Navigate to={"/login"} />} />
+
+        {/* PRD interview routes */}
+        <Route path="/mock-interview" element={isSignedIn ? <MockInterviewPage /> : <Navigate to={"/login"} />} />
+        <Route path="/recruiter-dashboard" element={isSignedIn ? <RecruiterDashboardPage /> : <Navigate to={"/login"} />} />
 
         {/* Catch-all */}
         <Route path="*" element={isSignedIn ? <Navigate to="/dashboard" replace /> : <NotFound />} />

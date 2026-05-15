@@ -37,6 +37,8 @@ export default function Navbar() {
             <>
               <NavLink to="/dashboard" isActive={isActive("/dashboard")} label="Dashboard" />
               <NavLink to="/practice" isActive={isActive("/practice")} label="Practice" />
+              <NavLink to="/mock-interview" isActive={isActive("/mock-interview")} label="Mock AI" />
+              <NavLink to="/recruiter-dashboard" isActive={isActive("/recruiter-dashboard")} label="Recruiter" />
               <NavLink to="/problems" isActive={isActive("/problems")} label="Problems" />
             </>
           )}

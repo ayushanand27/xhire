@@ -4,12 +4,14 @@ import {
   getMe,
   getUserPreferences,
   updateUserPreferences,
+  updateMyProfile,
   addFavoriteRoom,
   removeFavoriteRoom,
   getFavoriteRooms,
   blockUser,
   unblockUser,
   getBlockedUsers,
+  getUserDirectory,
 } from "../controllers/userController.js";
 
 const router = Router();
@@ -19,6 +21,8 @@ router.use(protectRoute);
 
 // Current user
 router.get("/me", getMe);
+router.put("/me", updateMyProfile);
+router.get("/directory", getUserDirectory);
 
 // User preferences
 router.get("/preferences", getUserPreferences);

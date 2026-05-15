@@ -6,7 +6,7 @@ import { serve } from "inngest/express";
 import { clerkMiddleware } from "@clerk/express";
 
 import { ENV } from "./lib/env.js";
-import { connectDB } from "./lib/db.js";
+import { prisma } from "./lib/prisma.js";
 import { inngest, functions } from "./lib/inngest.js";
 import { initializeSocket } from "./lib/socket.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -22,6 +22,10 @@ import testRoutes from "./routes/testRoutes.js";
 import recordingRoutes from "./routes/recordingRoutes.js";
 import streamWebhookRoutes from "./routes/streamWebhookRoutes.js";
 import problemsRoutes from "./routes/problemsRoutes.js";
+import interviewRoutes from "./routes/interviewRoutes.js";
+import interviewRoutesV2 from "./routes/interviewRoutesV2.js";
+import userRoutesV2 from "./routes/userRoutesV2.js";
+import jobRoutesV2 from "./routes/jobRoutesV2.js";
 
 const app = express();
 
@@ -86,9 +90,13 @@ app.use("/api/rooms/:roomId/chat", chatRoutes);
 app.use("/api/rooms/:roomId/activity", activityRoutes);
 app.use("/api/rooms/:roomId/recordings", recordingRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/user/v2", userRoutesV2);
 app.use("/api/tests", testRoutes);
 app.use("/api/problems", problemsRoutes);
 app.use("/api/stream/webhook", streamWebhookRoutes);
+app.use("/api/interviews", interviewRoutes);
+app.use("/api/interview", interviewRoutesV2); // Prisma-based interview routes
+app.use("/api/jobs", jobRoutesV2); // Job queue status + deepgram
 
 // make our app ready for deployment
 if (ENV.NODE_ENV === "production") {
@@ -115,15 +123,16 @@ const startServer = async () => {
       process.exit(1);
     });
 
-    // Connect to DB in the background
+    // Test Prisma connection
     try {
-      await connectDB();
-      console.log("✅ Database connected successfully");
+      await prisma.$queryRaw`SELECT 1`;
+      console.log("✅ PostgreSQL (Prisma) connected successfully");
+      console.log("✅ Using Supabase PostgreSQL database");
       console.log("✅ Socket.IO ready for real-time collaboration");
     } catch (dbError) {
-      console.warn("⚠️  Database connection failed, but server is running");
-      console.warn("Database error:", dbError.message);
-      // Server still runs for health checks, DB will retry
+      console.error("❌ Database connection failed:", dbError.message);
+      console.error("Make sure DATABASE_URL is set correctly in .env");
+      process.exit(1);
     }
   } catch (error) {
     console.error("❌ Fatal error starting server:", error.message);

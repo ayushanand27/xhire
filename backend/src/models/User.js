@@ -20,6 +20,22 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    role: {
+      type: String,
+      enum: ["candidate", "recruiter", "admin"],
+      default: "candidate",
+      index: true,
+    },
+    skills: {
+      type: [String],
+      default: [],
+    },
+    yearsOfExperience: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 60,
+    },
   },
   { timestamps: true } // createdAt, updatedAt
 );
