@@ -4,11 +4,13 @@ dotenv.config({ quiet: true });
 
 const requiredEnvVars = [
   "DATABASE_URL",
+  "DIRECT_URL",
   "CLERK_PUBLISHABLE_KEY",
   "CLERK_SECRET_KEY",
   "STREAM_API_KEY",
   "STREAM_API_SECRET",
-  "ANTHROPIC_API_KEY",
+  "GROQ_API_KEY",
+  "HUGGINGFACE_API_KEY",
   "DEEPGRAM_API_KEY",
   "SUPABASE_URL",
   "SUPABASE_KEY",
@@ -33,6 +35,7 @@ const validateEnv = () => {
 export const ENV = {
   PORT: process.env.PORT || "4000",
   DATABASE_URL: process.env.DATABASE_URL,
+  DIRECT_URL: process.env.DIRECT_URL,
   NODE_ENV: process.env.NODE_ENV || "development",
   CLIENT_URL: process.env.CLIENT_URL || "http://localhost:3000",
   SMTP_HOST: process.env.SMTP_HOST,
@@ -44,12 +47,14 @@ export const ENV = {
   INNGEST_SIGNING_KEY: process.env.INNGEST_SIGNING_KEY,
   STREAM_API_KEY: process.env.STREAM_API_KEY,
   STREAM_API_SECRET: process.env.STREAM_API_SECRET,
-  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+  GROQ_API_KEY: process.env.GROQ_API_KEY,
+  HUGGINGFACE_API_KEY: process.env.HUGGINGFACE_API_KEY,
   DEEPGRAM_API_KEY: process.env.DEEPGRAM_API_KEY,
   CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY,
   CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
   SUPABASE_URL: process.env.SUPABASE_URL,
   SUPABASE_KEY: process.env.SUPABASE_KEY,
+  SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE,
 };
 
 // Validate on module load

@@ -1,18 +1,34 @@
-import { Room } from "../models/Room.js";
+import { prisma } from "../lib/prisma.js";
+import {
+  buildParticipantPermissions,
+  ensurePrismaUser,
+  mapParticipant,
+  normalizeParticipantRole,
+} from "../lib/prismaAdapters.js";
+
+async function getRoomForParticipantOps(roomId) {
+  return prisma.room.findUnique({
+    where: { id: roomId },
+    include: {
+      creator: true,
+      participants: { include: { user: true } },
+    },
+  });
+}
 
 // GET ALL PARTICIPANTS IN A ROOM
 export const getParticipants = async (req, res) => {
   try {
     const { roomId } = req.params;
 
-    const room = await Room.findById(roomId).populate("participants.userId", "name email clerkId avatar");
+    const room = await getRoomForParticipantOps(roomId);
 
     if (!room) {
       return res.status(404).json({ error: "Room not found" });
     }
 
     res.json({
-      participants: room.participants,
+      participants: await Promise.all(room.participants.map(mapParticipant)),
       count: room.participants.length,
     });
   } catch (error) {
@@ -24,40 +40,45 @@ export const getParticipants = async (req, res) => {
 // UPDATE PARTICIPANT ROLE
 export const updateParticipantRole = async (req, res) => {
   try {
-    const userId = req.user._id;
     const { roomId, participantId } = req.params;
     const { role } = req.body;
+    const currentUser = await ensurePrismaUser(req.user);
 
     // Verify role is valid
     if (!["creator", "presenter", "viewer"].includes(role)) {
       return res.status(400).json({ error: "Invalid role" });
     }
 
-    const room = await Room.findById(roomId);
+    const room = await getRoomForParticipantOps(roomId);
 
     if (!room) {
       return res.status(404).json({ error: "Room not found" });
     }
 
     // Only creator can change roles
-    if (!room.isCreator(userId)) {
+    if (room.creatorId !== currentUser.id) {
       return res.status(403).json({ error: "Only room creator can change participant roles" });
     }
 
     // Can't demote yourself from creator
-    if (userId === participantId && role !== "creator") {
-      return res.status(400).json({ error: "You cannot remove yourself as creator" });
-    }
-
-    const success = await room.updateParticipantRole(participantId, role);
-
-    if (!success) {
+    const targetParticipant = room.participants.find((participant) => participant.userId === participantId);
+    if (!targetParticipant) {
       return res.status(404).json({ error: "Participant not found in room" });
     }
 
+    if (currentUser.id === participantId && role !== "creator") {
+      return res.status(400).json({ error: "You cannot remove yourself as creator" });
+    }
+
+    const updated = await prisma.roomParticipant.update({
+      where: { id: targetParticipant.id },
+      data: { role: normalizeParticipantRole(role) },
+      include: { user: true },
+    });
+
     res.json({
       message: "Participant role updated",
-      participant: room.getParticipant(participantId),
+      participant: mapParticipant(updated),
     });
   } catch (error) {
     console.error("Error updating participant role:", error);
@@ -68,18 +89,18 @@ export const updateParticipantRole = async (req, res) => {
 // UPDATE PARTICIPANT PERMISSIONS
 export const updateParticipantPermissions = async (req, res) => {
   try {
-    const userId = req.user._id;
     const { roomId, participantId } = req.params;
     const { permissions } = req.body;
+    const currentUser = await ensurePrismaUser(req.user);
 
-    const room = await Room.findById(roomId);
+    const room = await getRoomForParticipantOps(roomId);
 
     if (!room) {
       return res.status(404).json({ error: "Room not found" });
     }
 
     // Only creator can change permissions
-    if (!room.isCreator(userId)) {
+    if (room.creatorId !== currentUser.id) {
       return res.status(403).json({ error: "Only room creator can change permissions" });
     }
 
@@ -91,15 +112,20 @@ export const updateParticipantPermissions = async (req, res) => {
       return res.status(400).json({ error: `Invalid permission keys: ${invalidKeys.join(", ")}` });
     }
 
-    const success = await room.updateParticipantPermissions(participantId, permissions);
-
-    if (!success) {
+    const targetParticipant = room.participants.find((participant) => participant.userId === participantId);
+    if (!targetParticipant) {
       return res.status(404).json({ error: "Participant not found in room" });
     }
 
+    const updated = await prisma.roomParticipant.update({
+      where: { id: targetParticipant.id },
+      data: { permissions: buildParticipantPermissions({ ...(targetParticipant.permissions || {}), ...permissions }) },
+      include: { user: true },
+    });
+
     res.json({
       message: "Participant permissions updated",
-      participant: room.getParticipant(participantId),
+      participant: mapParticipant(updated),
     });
   } catch (error) {
     console.error("Error updating permissions:", error);
@@ -110,26 +136,31 @@ export const updateParticipantPermissions = async (req, res) => {
 // REMOVE PARTICIPANT FROM ROOM
 export const removeParticipant = async (req, res) => {
   try {
-    const userId = req.user._id;
     const { roomId, participantId } = req.params;
+    const currentUser = await ensurePrismaUser(req.user);
 
-    const room = await Room.findById(roomId);
+    const room = await getRoomForParticipantOps(roomId);
 
     if (!room) {
       return res.status(404).json({ error: "Room not found" });
     }
 
     // Only creator can remove participants
-    if (!room.isCreator(userId)) {
+    if (room.creatorId !== currentUser.id) {
       return res.status(403).json({ error: "Only room creator can remove participants" });
     }
 
     // Can't remove yourself
-    if (userId === participantId) {
+    if (currentUser.id === participantId) {
       return res.status(400).json({ error: "Cannot remove yourself from room. Use leave instead." });
     }
 
-    await room.removeParticipant(participantId);
+    const targetParticipant = room.participants.find((participant) => participant.userId === participantId);
+    if (!targetParticipant) {
+      return res.status(404).json({ error: "Participant not found in room" });
+    }
+
+    await prisma.roomParticipant.delete({ where: { id: targetParticipant.id } });
 
     res.json({ message: "Participant removed from room" });
   } catch (error) {
@@ -141,36 +172,40 @@ export const removeParticipant = async (req, res) => {
 // UPDATE PARTICIPANT MEDIA STATUS (muted, camera off, screen sharing)
 export const updateParticipantMediaStatus = async (req, res) => {
   try {
-    const userId = req.user._id;
     const { roomId } = req.params;
     const { isMuted, isCameraOff, isScreenSharing } = req.body;
+    const currentUser = await ensurePrismaUser(req.user);
 
-    const room = await Room.findById(roomId);
+    const room = await getRoomForParticipantOps(roomId);
 
     if (!room) {
       return res.status(404).json({ error: "Room not found" });
     }
 
-    const participant = room.getParticipant(userId);
+    const participant = room.participants.find((p) => p.userId === currentUser.id);
 
     if (!participant) {
       return res.status(403).json({ error: "You are not a participant in this room" });
     }
 
     // Check permissions
-    if (isScreenSharing && !participant.permissions.canScreenShare) {
+    if (isScreenSharing && !(participant.permissions?.canScreenShare ?? true)) {
       return res.status(403).json({ error: "You do not have permission to screen share" });
     }
 
-    if (isMuted !== undefined) participant.isMuted = isMuted;
-    if (isCameraOff !== undefined) participant.isCameraOff = isCameraOff;
-    if (isScreenSharing !== undefined) participant.isScreenSharing = isScreenSharing;
-
-    await room.save();
+    const updated = await prisma.roomParticipant.update({
+      where: { id: participant.id },
+      data: {
+        ...(isMuted !== undefined ? { isMuted } : {}),
+        ...(isCameraOff !== undefined ? { isCameraOff } : {}),
+        ...(isScreenSharing !== undefined ? { isScreenSharing } : {}),
+      },
+      include: { user: true },
+    });
 
     res.json({
       message: "Media status updated",
-      participant,
+      participant: mapParticipant(updated),
     });
   } catch (error) {
     console.error("Error updating media status:", error);
@@ -183,19 +218,19 @@ export const getParticipantDetails = async (req, res) => {
   try {
     const { roomId, participantId } = req.params;
 
-    const room = await Room.findById(roomId).populate("participants.userId", "name email clerkId avatar");
+    const room = await getRoomForParticipantOps(roomId);
 
     if (!room) {
       return res.status(404).json({ error: "Room not found" });
     }
 
-    const participant = room.getParticipant(participantId);
+    const participant = room.participants.find((p) => p.userId === participantId);
 
     if (!participant) {
       return res.status(404).json({ error: "Participant not found in room" });
     }
 
-    res.json(participant);
+    res.json(mapParticipant(participant));
   } catch (error) {
     console.error("Error fetching participant:", error);
     res.status(500).json({ error: "Failed to fetch participant" });

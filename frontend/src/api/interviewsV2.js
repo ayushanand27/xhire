@@ -2,13 +2,13 @@ import axiosInstance from "../lib/axios";
 
 /**
  * Interview API Client (Prisma/PostgreSQL Version)
- * Uses the new /api/interview endpoints with Claude RAG, Deepgram STT, and Supabase storage
+ * Uses the new /api/interview endpoints with Groq, Deepgram STT, and PostgreSQL storage
  */
 export const interviewApiV2 = {
   /**
    * Create a new interview session
    * - Uploads resume and JD
-   * - Parses resume with Claude
+  * - Parses resume with Groq
    * - Returns sessionId for starting the interview
    */
   createInterview: async ({ type, resumeText, jdText }) => {
@@ -29,6 +29,14 @@ export const interviewApiV2 = {
   },
 
   /**
+   * Fetch the authenticated user's interview sessions for the candidate dashboard
+   */
+  listSessions: async (params = {}) => {
+    const response = await axiosInstance.get("/api/interview/sessions", { params });
+    return response.data;
+  },
+
+  /**
    * Get full interview details including transcript and evaluation
    */
   getInterviewById: async (id) => {
@@ -39,7 +47,7 @@ export const interviewApiV2 = {
   /**
    * Start an interview session
    * - Changes status from PENDING to ACTIVE
-   * - Generates first 3 questions using Claude RAG
+  * - Generates first 3 questions using Groq
    * - Returns questions array
    */
   startInterview: async (id) => {
@@ -50,7 +58,7 @@ export const interviewApiV2 = {
   /**
    * Submit an answer to a question
    * - Stores answer as Message
-   * - Claude evaluates answer and gives feedback
+  * - Groq evaluates answer and gives feedback
    * - Returns evaluation and next question
    */
   submitAnswer: async (id, { question, answer }) => {

@@ -1,28 +1,49 @@
-import { Activity } from "../models/Activity.js";
-import { Room } from "../models/Room.js";
+import { prisma } from "../lib/prisma.js";
+import {
+  ensurePrismaUser,
+  mapActivity,
+  normalizeActivityEventType,
+  resolveUserId,
+} from "../lib/prismaAdapters.js";
 
 // Log activity (called internally by socket events and REST endpoints)
 export const logActivity = async (req, res, next) => {
   try {
     const { roomId, eventType, description, metadata } = req.body;
 
-    const room = await Room.findById(roomId);
+    const currentUser = await ensurePrismaUser(req.user);
+    const room = await prisma.room.findUnique({ where: { id: roomId } });
     if (!room) {
       return res.status(404).json({ error: "Room not found" });
     }
 
-    const activity = new Activity({
-      roomId,
-      userId: req.user.id,
-      userName: req.user.name,
-      eventType,
-      description,
-      metadata,
-      ipAddress: req.ip,
+    const activity = await prisma.activity.create({
+      data: {
+        roomId,
+        userId: currentUser.id,
+        userName: currentUser.name,
+        eventType: normalizeActivityEventType(eventType),
+        description: description || null,
+        metadata: metadata ?? null,
+        ipAddress: req.ip || null,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            clerkId: true,
+            name: true,
+            email: true,
+            profileImage: true,
+            role: true,
+            skills: true,
+            yearsOfExperience: true,
+          },
+        },
+      },
     });
 
-    await activity.save();
-    res.status(201).json(activity);
+    return res.status(201).json(await mapActivity(activity));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -33,42 +54,66 @@ export const getRoomActivity = async (req, res) => {
   try {
     const { roomId } = req.params;
     const { page = 1, limit = 50, eventType } = req.query;
-    const skip = (page - 1) * limit;
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 50;
+    const skip = (pageNum - 1) * limitNum;
+
+    const currentUser = await ensurePrismaUser(req.user);
 
     // Verify access
-    const room = await Room.findById(roomId);
+    const room = await prisma.room.findUnique({
+      where: { id: roomId },
+      include: {
+        participants: true,
+      },
+    });
     if (!room) {
       return res.status(404).json({ error: "Room not found" });
     }
 
-    if (!room.isParticipant(req.user.id) && room.creator.toString() !== req.user.id) {
+    const isParticipant = room.participants.some((p) => p.userId === currentUser.id);
+    if (!isParticipant && room.creatorId !== currentUser.id) {
       return res
         .status(403)
         .json({ error: "You don't have access to this room's activity log" });
     }
 
     // Build query
-    const query = { roomId };
-    if (eventType) {
-      query.eventType = eventType;
-    }
+    const where = {
+      roomId,
+      ...(eventType ? { eventType: normalizeActivityEventType(eventType) } : {}),
+    };
 
-    // Get paginated activity
-    const activities = await Activity.find(query)
-      .populate("userId", "name profileImage email")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+    const activities = await prisma.activity.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            clerkId: true,
+            name: true,
+            email: true,
+            profileImage: true,
+            role: true,
+            skills: true,
+            yearsOfExperience: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limitNum,
+    });
 
-    const totalActivities = await Activity.countDocuments(query);
+    const totalActivities = await prisma.activity.count({ where });
 
-    res.json({
-      activities,
+    return res.json({
+      activities: await Promise.all(activities.map(mapActivity)),
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total: totalActivities,
-        pages: Math.ceil(totalActivities / limit),
+        pages: Math.ceil(totalActivities / limitNum),
       },
     });
   } catch (error) {
@@ -81,24 +126,53 @@ export const getUserActivity = async (req, res) => {
   try {
     const { userId } = req.params;
     const { page = 1, limit = 50 } = req.query;
-    const skip = (page - 1) * limit;
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 50;
+    const skip = (pageNum - 1) * limitNum;
 
-    // Can only view own activity or if room creator
-    const activities = await Activity.find({ userId })
-      .populate("roomId", "name")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+    const resolvedUser = await resolveUserId(userId);
+    if (!resolvedUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
 
-    const totalActivities = await Activity.countDocuments({ userId });
+    const where = { userId: resolvedUser.id };
 
-    res.json({
-      activities,
+    const activities = await prisma.activity.findMany({
+      where,
+      include: {
+        room: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            clerkId: true,
+            name: true,
+            email: true,
+            profileImage: true,
+            role: true,
+            skills: true,
+            yearsOfExperience: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limitNum,
+    });
+
+    const totalActivities = await prisma.activity.count({ where });
+
+    return res.json({
+      activities: await Promise.all(activities.map(mapActivity)),
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total: totalActivities,
-        pages: Math.ceil(totalActivities / limit),
+        pages: Math.ceil(totalActivities / limitNum),
       },
     });
   } catch (error) {
@@ -111,28 +185,60 @@ export const getActivityByType = async (req, res) => {
   try {
     const { roomId, eventType } = req.params;
     const { page = 1, limit = 50 } = req.query;
-    const skip = (page - 1) * limit;
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 50;
+    const skip = (pageNum - 1) * limitNum;
 
-    const room = await Room.findById(roomId);
+    const currentUser = await ensurePrismaUser(req.user);
+
+    const room = await prisma.room.findUnique({
+      where: { id: roomId },
+      include: { participants: true },
+    });
     if (!room) {
       return res.status(404).json({ error: "Room not found" });
     }
 
-    const activities = await Activity.find({ roomId, eventType })
-      .populate("userId", "name profileImage")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+    const isParticipant = room.participants.some((p) => p.userId === currentUser.id);
+    if (!isParticipant && room.creatorId !== currentUser.id) {
+      return res.status(403).json({ error: "You don't have access to this room" });
+    }
 
-    const totalActivities = await Activity.countDocuments({ roomId, eventType });
+    const where = {
+      roomId,
+      eventType: normalizeActivityEventType(eventType),
+    };
 
-    res.json({
-      activities,
+    const activities = await prisma.activity.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            clerkId: true,
+            name: true,
+            email: true,
+            profileImage: true,
+            role: true,
+            skills: true,
+            yearsOfExperience: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limitNum,
+    });
+
+    const totalActivities = await prisma.activity.count({ where });
+
+    return res.json({
+      activities: await Promise.all(activities.map(mapActivity)),
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total: totalActivities,
-        pages: Math.ceil(totalActivities / limit),
+        pages: Math.ceil(totalActivities / limitNum),
       },
     });
   } catch (error) {
@@ -145,43 +251,82 @@ export const getRoomStats = async (req, res) => {
   try {
     const { roomId } = req.params;
 
-    const room = await Room.findById(roomId);
+    const currentUser = await ensurePrismaUser(req.user);
+    const room = await prisma.room.findUnique({
+      where: { id: roomId },
+      include: { participants: true },
+    });
     if (!room) {
       return res.status(404).json({ error: "Room not found" });
     }
 
-    if (!room.isParticipant(req.user.id) && room.creator.toString() !== req.user.id) {
+    const isParticipant = room.participants.some((p) => p.userId === currentUser.id);
+    if (!isParticipant && room.creatorId !== currentUser.id) {
       return res
         .status(403)
         .json({ error: "You don't have access to this room's statistics" });
     }
 
-    const stats = {
-      totalActivities: await Activity.countDocuments({ roomId }),
-      uniqueUsers: await Activity.distinct("userId", { roomId }),
-      eventBreakdown: await Activity.aggregate([
-        { $match: { roomId } },
-        { $group: { _id: "$eventType", count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-      ]),
-      peakActivityTime: await Activity.aggregate([
-        { $match: { roomId } },
-        {
-          $group: {
-            _id: { $dateToString: { format: "%H:00", date: "$createdAt" } },
-            count: { $sum: 1 },
+    const activities = await prisma.activity.findMany({
+      where: { roomId },
+      select: {
+        userId: true,
+        eventType: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const totalActivities = activities.length;
+    const uniqueUsers = new Set(activities.map((activity) => activity.userId));
+
+    const eventCounts = new Map();
+    const hourCounts = new Map();
+
+    for (const activity of activities) {
+      eventCounts.set(activity.eventType, (eventCounts.get(activity.eventType) || 0) + 1);
+      const hourLabel = `${String(new Date(activity.createdAt).getHours()).padStart(2, "0")}:00`;
+      hourCounts.set(hourLabel, (hourCounts.get(hourLabel) || 0) + 1);
+    }
+
+    const eventBreakdown = [...eventCounts.entries()]
+      .map(([eventType, count]) => ({ eventType: eventType.toLowerCase().replace(/_/g, "-"), count }))
+      .sort((a, b) => b.count - a.count);
+
+    const peakActivityTime = [...hourCounts.entries()]
+      .map(([hour, count]) => ({ _id: hour, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 1);
+
+    const recentActivities = await prisma.activity.findMany({
+      where: { roomId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            clerkId: true,
+            name: true,
+            email: true,
+            profileImage: true,
+            role: true,
+            skills: true,
+            yearsOfExperience: true,
           },
         },
-        { $sort: { count: -1 } },
-        { $limit: 1 },
-      ]),
-      recentActivities: await Activity.find({ roomId })
-        .populate("userId", "name profileImage")
-        .sort({ createdAt: -1 })
-        .limit(10),
+      },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    });
+
+    const stats = {
+      totalActivities,
+      uniqueUsers: [...uniqueUsers],
+      eventBreakdown,
+      peakActivityTime,
+      recentActivities: await Promise.all(recentActivities.map(mapActivity)),
     };
 
-    res.json(stats);
+    return res.json(stats);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

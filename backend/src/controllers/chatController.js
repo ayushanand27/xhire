@@ -1,20 +1,25 @@
 import { chatClient } from "../lib/stream.js";
-import { Chat } from "../models/Chat.js";
-import { Room } from "../models/Room.js";
-import { User } from "../models/User.js";
+import { prisma } from "../lib/prisma.js";
+import {
+  ensurePrismaUser,
+  mapPrismaUser,
+  normalizeMessageType,
+  toApiMessageType,
+} from "../lib/prismaAdapters.js";
 
 // Get Stream token for real-time chat via Stream.io
 export async function getStreamToken(req, res) {
   try {
-    // use clerkId for Stream (not mongodb _id)=> it should match the id we have in the stream dashboard
+    const currentUser = await ensurePrismaUser(req.user);
+
     const client = chatClient.getInstance();
-    const token = client.createToken(req.user.clerkId);
+    const token = client.createToken(currentUser.clerkId);
 
     res.status(200).json({
       token,
-      userId: req.user.clerkId,
-      userName: req.user.name,
-      userImage: req.user.image,
+      userId: currentUser.clerkId,
+      userName: currentUser.name,
+      userImage: currentUser.profileImage,
     });
   } catch (error) {
     console.log("Error in getStreamToken controller:", error.message);
@@ -22,45 +27,130 @@ export async function getStreamToken(req, res) {
   }
 }
 
+async function getRoomForChat(roomId, currentUserId) {
+  const room = await prisma.room.findUnique({
+    where: { id: roomId },
+    include: {
+      creator: true,
+      participants: { include: { user: true } },
+    },
+  });
+
+  if (!room) return null;
+
+  const isParticipant = room.participants.some((p) => p.userId === currentUserId);
+  if (!isParticipant && room.creatorId !== currentUserId) {
+    const error = new Error("You don't have access to this room");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  return room;
+}
+
+function mapMessage(message, userMap = new Map()) {
+  const sender = message.sender ? mapPrismaUser(message.sender) : null;
+
+  return {
+    id: message.id,
+    roomId: message.roomId,
+    senderId: sender || message.senderId,
+    senderName: message.senderName,
+    senderAvatar: message.senderAvatar || "",
+    message: message.message,
+    messageType: toApiMessageType(message.messageType),
+    codeLanguage: message.codeLanguage || null,
+    isEdited: message.isEdited,
+    editedAt: message.editedAt,
+    reactions: message.reactions || [],
+    mentionedUsers: Array.isArray(message.mentionedUsers)
+      ? message.mentionedUsers.map((id) => userMap.get(id) || id)
+      : [],
+    createdAt: message.createdAt,
+  };
+}
+
+async function hydrateMentionUsers(messages) {
+  const mentionedIds = [...new Set(messages.flatMap((m) => m.mentionedUsers || []))];
+  if (mentionedIds.length === 0) return new Map();
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: mentionedIds } },
+    select: {
+      id: true,
+      clerkId: true,
+      name: true,
+      email: true,
+      profileImage: true,
+      role: true,
+      skills: true,
+      yearsOfExperience: true,
+    },
+  });
+
+  return new Map(users.map((user) => [user.id, mapPrismaUser(user)]));
+}
+
 // Get chat history for a room
 export const getChatHistory = async (req, res) => {
   try {
     const { roomId } = req.params;
     const { page = 1, limit = 50 } = req.query;
-    const skip = (page - 1) * limit;
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 50;
+    const skip = (pageNum - 1) * limitNum;
+
+    const currentUser = await ensurePrismaUser(req.user);
 
     // Verify room exists and user has access
-    const room = await Room.findById(roomId);
+    const room = await getRoomForChat(roomId, currentUser.id);
     if (!room) {
       return res.status(404).json({ error: "Room not found" });
     }
 
-    if (!room.isParticipant(req.user.id)) {
-      return res
-        .status(403)
-        .json({ error: "You don't have access to this room" });
-    }
-
     // Get paginated chat history
-    const messages = await Chat.find({ roomId })
-      .populate("senderId", "name profileImage email")
-      .populate("mentionedUsers", "name profileImage")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+    const messages = await prisma.chat.findMany({
+      where: { roomId },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            clerkId: true,
+            name: true,
+            email: true,
+            profileImage: true,
+            role: true,
+            skills: true,
+            yearsOfExperience: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limitNum,
+    });
 
-    const totalMessages = await Chat.countDocuments({ roomId });
+    const mentionUserMap = await hydrateMentionUsers(messages);
 
-    res.json({
-      messages: messages.reverse(), // Return in chronological order
+    const mappedMessages = messages
+      .map((message) => mapMessage(message, mentionUserMap))
+      .reverse();
+
+    const totalMessages = await prisma.chat.count({ where: { roomId } });
+
+    return res.json({
+      messages: mappedMessages,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total: totalMessages,
-        pages: Math.ceil(totalMessages / limit),
+        pages: Math.ceil(totalMessages / limitNum),
       },
     });
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     res.status(500).json({ error: error.message });
   }
 };
@@ -75,42 +165,54 @@ export const sendMessage = async (req, res) => {
       return res.status(400).json({ error: "Message cannot be empty" });
     }
 
-    const room = await Room.findById(roomId);
+    const currentUser = await ensurePrismaUser(req.user);
+    const room = await getRoomForChat(roomId, currentUser.id);
     if (!room) {
       return res.status(404).json({ error: "Room not found" });
     }
 
-    const user = await User.findById(req.user.id);
-    const participant = room.getParticipant(req.user.id);
+    const participant = room.participants.find((p) => p.userId === currentUser.id);
 
     if (!participant) {
       return res.status(403).json({ error: "You are not a participant in this room" });
     }
 
     // Check if user has chat permission
-    if (!participant.permissions.canChat) {
+    if (!(participant.permissions?.canChat ?? true)) {
       return res.status(403).json({ error: "You don't have permission to chat" });
     }
 
-    const newMessage = new Chat({
-      roomId,
-      senderId: req.user.id,
-      senderName: user.name,
-      senderAvatar: user.profileImage,
-      message,
-      messageType,
-      codeLanguage: messageType === "code" ? codeLanguage : null,
+    const newMessage = await prisma.chat.create({
+      data: {
+        roomId,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        senderAvatar: currentUser.profileImage,
+        message,
+        messageType: normalizeMessageType(messageType),
+        codeLanguage: messageType === "code" ? codeLanguage || null : null,
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            clerkId: true,
+            name: true,
+            email: true,
+            profileImage: true,
+            role: true,
+            skills: true,
+            yearsOfExperience: true,
+          },
+        },
+      },
     });
 
-    await newMessage.save();
-
-    const populatedMessage = await newMessage.populate(
-      "senderId",
-      "name profileImage email"
-    );
-
-    res.status(201).json(populatedMessage);
+    return res.status(201).json(mapMessage(newMessage));
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     res.status(500).json({ error: error.message });
   }
 };
@@ -121,31 +223,47 @@ export const searchMessages = async (req, res) => {
     const { roomId } = req.params;
     const { query } = req.query;
 
+    const currentUser = await ensurePrismaUser(req.user);
+
     if (!query) {
       return res.status(400).json({ error: "Search query required" });
     }
 
-    const room = await Room.findById(roomId);
+    const room = await getRoomForChat(roomId, currentUser.id);
     if (!room) {
       return res.status(404).json({ error: "Room not found" });
     }
 
-    if (!room.isParticipant(req.user.id)) {
-      return res
-        .status(403)
-        .json({ error: "You don't have access to this room" });
-    }
+    const messages = await prisma.chat.findMany({
+      where: {
+        roomId,
+        message: { contains: query, mode: "insensitive" },
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            clerkId: true,
+            name: true,
+            email: true,
+            profileImage: true,
+            role: true,
+            skills: true,
+            yearsOfExperience: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    });
 
-    const messages = await Chat.find({
-      roomId,
-      message: { $regex: query, $options: "i" },
-    })
-      .populate("senderId", "name profileImage")
-      .sort({ createdAt: -1 })
-      .limit(20);
+    const mentionUserMap = await hydrateMentionUsers(messages);
 
-    res.json(messages);
+    return res.json(messages.map((message) => mapMessage(message, mentionUserMap)));
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     res.status(500).json({ error: error.message });
   }
 };
@@ -160,26 +278,48 @@ export const editMessage = async (req, res) => {
       return res.status(400).json({ error: "Message cannot be empty" });
     }
 
-    const chatMessage = await Chat.findById(messageId);
+    const currentUser = await ensurePrismaUser(req.user);
+    const chatMessage = await prisma.chat.findUnique({
+      where: { id: messageId },
+    });
     if (!chatMessage) {
       return res.status(404).json({ error: "Message not found" });
     }
 
     // Check if user is sender or room creator
-    const room = await Room.findById(roomId);
-    if (
-      chatMessage.senderId.toString() !== req.user.id &&
-      room.creator.toString() !== req.user.id
-    ) {
+    const room = await prisma.room.findUnique({ where: { id: roomId } });
+    if (!room) {
+      return res.status(404).json({ error: "Room not found" });
+    }
+
+    if (chatMessage.senderId !== currentUser.id && room.creatorId !== currentUser.id) {
       return res.status(403).json({ error: "You can't edit this message" });
     }
 
-    chatMessage.message = message;
-    chatMessage.isEdited = true;
-    chatMessage.editedAt = new Date();
+    const updated = await prisma.chat.update({
+      where: { id: messageId },
+      data: {
+        message,
+        isEdited: true,
+        editedAt: new Date(),
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            clerkId: true,
+            name: true,
+            email: true,
+            profileImage: true,
+            role: true,
+            skills: true,
+            yearsOfExperience: true,
+          },
+        },
+      },
+    });
 
-    await chatMessage.save();
-    res.json(chatMessage);
+    return res.json(mapMessage(updated));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -190,21 +330,23 @@ export const deleteMessage = async (req, res) => {
   try {
     const { roomId, messageId } = req.params;
 
-    const chatMessage = await Chat.findById(messageId);
+    const currentUser = await ensurePrismaUser(req.user);
+    const chatMessage = await prisma.chat.findUnique({ where: { id: messageId } });
     if (!chatMessage) {
       return res.status(404).json({ error: "Message not found" });
     }
 
-    const room = await Room.findById(roomId);
-    if (
-      chatMessage.senderId.toString() !== req.user.id &&
-      room.creator.toString() !== req.user.id
-    ) {
+    const room = await prisma.room.findUnique({ where: { id: roomId } });
+    if (!room) {
+      return res.status(404).json({ error: "Room not found" });
+    }
+
+    if (chatMessage.senderId !== currentUser.id && room.creatorId !== currentUser.id) {
       return res.status(403).json({ error: "You can't delete this message" });
     }
 
-    await Chat.findByIdAndDelete(messageId);
-    res.json({ message: "Message deleted successfully" });
+    await prisma.chat.delete({ where: { id: messageId } });
+    return res.json({ message: "Message deleted successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -220,35 +362,81 @@ export const addReaction = async (req, res) => {
       return res.status(400).json({ error: "Emoji required" });
     }
 
-    const chatMessage = await Chat.findById(messageId);
+    const currentUser = await ensurePrismaUser(req.user);
+    const chatMessage = await prisma.chat.findUnique({
+      where: { id: messageId },
+    });
     if (!chatMessage) {
       return res.status(404).json({ error: "Message not found" });
     }
 
-    const user = await User.findById(req.user.id);
+    const user = currentUser;
+
+    const room = await prisma.room.findUnique({ where: { id: roomId } });
+    if (!room) {
+      return res.status(404).json({ error: "Room not found" });
+    }
 
     // Check if user already reacted with this emoji
-    const existingReaction = chatMessage.reactions.find(
-      (r) =>
-        r.emoji === emoji && r.userId.toString() === req.user.id
+    const reactions = Array.isArray(chatMessage.reactions) ? [...chatMessage.reactions] : [];
+    const existingReaction = reactions.find(
+      (r) => r.emoji === emoji && r.userId === currentUser.id
     );
 
     if (existingReaction) {
       // Remove reaction if already exists
-      chatMessage.reactions = chatMessage.reactions.filter(
-        (r) => !(r.emoji === emoji && r.userId.toString() === req.user.id)
+      const updatedReactions = reactions.filter(
+        (r) => !(r.emoji === emoji && r.userId === currentUser.id)
       );
+      const updated = await prisma.chat.update({
+        where: { id: messageId },
+        data: { reactions: updatedReactions },
+        include: {
+          sender: {
+            select: {
+              id: true,
+              clerkId: true,
+              name: true,
+              email: true,
+              profileImage: true,
+              role: true,
+              skills: true,
+              yearsOfExperience: true,
+            },
+          },
+        },
+      });
+
+      return res.json(mapMessage(updated));
     } else {
       // Add new reaction
-      chatMessage.reactions.push({
+      reactions.push({
         emoji,
-        userId: req.user.id,
+        userId: currentUser.id,
         userName: user.name,
       });
-    }
 
-    await chatMessage.save();
-    res.json(chatMessage);
+      const updated = await prisma.chat.update({
+        where: { id: messageId },
+        data: { reactions },
+        include: {
+          sender: {
+            select: {
+              id: true,
+              clerkId: true,
+              name: true,
+              email: true,
+              profileImage: true,
+              role: true,
+              skills: true,
+              yearsOfExperience: true,
+            },
+          },
+        },
+      });
+
+      return res.json(mapMessage(updated));
+    }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

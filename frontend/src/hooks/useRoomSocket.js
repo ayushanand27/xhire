@@ -13,7 +13,7 @@ export const useRoomSocket = (roomId, userId, userName) => {
     import.meta.env.VITE_SERVER_URL ||
     (import.meta.env.VITE_API_URL
       ? import.meta.env.VITE_API_URL.trim().replace(/\/+$/, "").replace(/\/api\/?$/, "")
-      : "http://localhost:4000");
+      : "http://localhost:4001");
 
   // Initialize socket connection
   useEffect(() => {
@@ -217,7 +217,7 @@ export const useRoomEvents = (roomId, callback) => {
       import.meta.env.VITE_SERVER_URL ||
       (import.meta.env.VITE_API_URL
         ? import.meta.env.VITE_API_URL.trim().replace(/\/+$/, "").replace(/\/api\/?$/, "")
-        : "http://localhost:4000");
+        : "http://localhost:4001");
 
     socketRef.current = io(baseUrl);
 

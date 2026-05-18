@@ -8,6 +8,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ==================== Models ====================
@@ -18,6 +19,9 @@ model User {
   clerkId   String   @unique
   email     String   @unique
   name      String?
+  profileImage String?
+  skills     String[] @default([])
+  yearsOfExperience Int? @default(0)
   role      Role     @default(CANDIDATE)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -27,6 +31,12 @@ model User {
   jobDescriptions JobDescription[]
   candidateSessions Session[] @relation("candidateSessions")
   recruiterSessions Session[] @relation("recruiterSessions")
+  // Relations added for Prisma migration
+  roomsCreated    Room[]
+  roomParticipants RoomParticipant[]
+  chats           Chat[]
+  activities      Activity[]
+  userPreferences UserPreferences?
 }
 
 enum Role {
@@ -41,7 +51,7 @@ model Resume {
   userId        String
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  storagePath   String   // Supabase Storage path
+  storagePath   String?  // Supabase Storage path (made optional to allow local-only resumes)
   filename      String?
   extractedText String?  @db.Text
   skills        String[] // JSON array
@@ -63,7 +73,7 @@ model ResumeChunk {
   resume    Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
   
   content   String   @db.Text
-  embedding String?  // pgvector stored as text (1536-dim)
+  embedding Unsupported("vector(384)")?  // pgvector vector column (384-dim)
   chunkIndex Int?
   
   createdAt DateTime @default(now())
@@ -169,7 +179,7 @@ model ProctorEvent {
   eventType   String   // 'no_face', 'multiple_faces', 'gaze_off', 'tab_switch', etc.
   severity    EventSeverity
   warningNum  Int?     // 1, 2, or 3
-  metadata    String?  @db.JsonB
+  metadata    Json?    @db.JsonB
   
   createdAt   DateTime @default(now())
 
@@ -209,8 +219,8 @@ model Job {
   id        String   @id @default(cuid())
   type      String   // 'evaluate', 'generate_report', etc.
   status    JobStatus @default(PENDING)
-  payload   String   @db.JsonB
-  result    String?  @db.JsonB
+  payload   Json     @db.JsonB
+  result    Json?    @db.JsonB
   error     String?
   
   attempts  Int      @default(0)
@@ -229,4 +239,148 @@ enum JobStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+// Room model and related types (from mongoose Room schema)
+model Room {
+  id        String   @id @default(cuid())
+  name      String
+  description String?
+  creatorId String
+  creator   User     @relation(fields: [creatorId], references: [id])
+  roomType  RoomType @default(GENERAL)
+  isPublic  Boolean  @default(false)
+  password  String?  
+  config    Json?    // store roomConfig as JSON
+  sharedCode Json?   // store language, code, lastEditedBy, lastEditedAt
+  status    RoomStatus @default(ACTIVE)
+  tags      String[] @default([])
+  recordingUrl String?
+  recordingActive Boolean @default(false)
+  recordingStartedAt DateTime?
+  expiresAt DateTime?
+
+  participants RoomParticipant[]
+  chats        Chat[]
+  activities   Activity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([creatorId])
+  @@index([roomType])
+  @@index([isPublic])
+}
+
+model RoomParticipant {
+  id        String   @id @default(cuid())
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      ParticipantRole @default(VIEWER)
+  joinedAt  DateTime @default(now())
+  permissions Json?  // canEdit, canExecute, etc.
+  isMuted   Boolean  @default(false)
+  isCameraOff Boolean @default(false)
+  isScreenSharing Boolean @default(false)
+}
+
+enum RoomType {
+  INTERVIEW
+  PAIR_PROGRAMMING
+  TEAM_MEETING
+  STUDY_GROUP
+  GENERAL
+}
+
+enum ParticipantRole {
+  CREATOR
+  PRESENTER
+  VIEWER
+  INTERVIEWER
+  CANDIDATE
+  OBSERVER
+}
+
+enum RoomStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+// Chat model
+model Chat {
+  id        String   @id @default(cuid())
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  senderName String
+  senderAvatar String?
+  message   String
+  messageType MessageType @default(TEXT)
+  codeLanguage String?
+  isEdited  Boolean @default(false)
+  editedAt  DateTime?
+  reactions Json?  // array of { emoji, userId, userName }
+  mentionedUsers String[] @default([])
+
+  createdAt DateTime @default(now())
+
+  @@index([roomId, createdAt])
+}
+
+enum MessageType {
+  TEXT
+  CODE
+  SYSTEM
+}
+
+// Activity model
+model Activity {
+  id        String   @id @default(cuid())
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userName  String
+  eventType ActivityEventType
+  description String?
+  metadata  Json?
+  ipAddress String?
+
+  createdAt DateTime @default(now())
+
+  @@index([roomId, createdAt])
+  @@index([userId, createdAt])
+}
+
+enum ActivityEventType {
+  JOINED
+  LEFT
+  CODE_EXECUTED
+  CODE_SHARED
+  SCREEN_SHARED
+  CAMERA_TOGGLED
+  MIC_TOGGLED
+  MESSAGE_SENT
+  ROLE_CHANGED
+  PERMISSIONS_CHANGED
+}
+
+// UserPreferences model
+model UserPreferences {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roomPreferences Json?  // defaultLayout, autoStartCamera, etc.
+  codePreferences Json?  // defaultLanguage, fontSize, theme
+  notificationPreferences Json?
+  privacySettings Json?
+  favoritedRooms String[] @default([]) // array of room ids
+  blockedUsers String[] @default([])   // array of user ids
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

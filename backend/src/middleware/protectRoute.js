@@ -1,104 +1,96 @@
 import { clerkClient } from "@clerk/express";
-import { User } from "../models/User.js";
 import { ENV } from "../lib/env.js";
+import { ensurePrismaUser, mapPrismaUser } from "../lib/prismaAdapters.js";
 
 export const protectRoute = async (req, res, next) => {
   try {
     console.log("\n🔒 protectRoute middleware triggered");
-    console.log("   Authorization header:", req.headers.authorization ? "✅ Present" : "❌ Missing");
-    
+
     let clerkId = null;
-    
-    // Try to get userId from Clerk middleware first
+    let sessionId = null;
+
+    // 1) Prefer clerk middleware's auth if available
     try {
-      const authResult = req.auth();
-      console.log("   req.auth():", authResult ? JSON.stringify({ userId: authResult.userId, sessionId: authResult.sessionId }) : "null");
-      clerkId = authResult?.userId;
-    } catch (error) {
-      console.log("   req.auth() failed:", error.message);
+      const authResult = typeof req.auth === 'function' ? req.auth() : req.auth;
+      if (authResult) {
+        clerkId = authResult.userId || authResult?.user_id || authResult?.sub;
+        sessionId = authResult.sessionId || authResult?.session_id;
+        console.log("   Found auth from middleware", { clerkId, sessionId });
+      }
+    } catch (err) {
+      console.log("   req.auth() not available or failed:", err?.message || err);
     }
-    
-    // If no userId from middleware, manually decode and verify the Bearer token
+
+    // 2) If no clerkId yet, verify Authorization: Bearer <token>
     if (!clerkId && req.headers.authorization) {
-      const token = req.headers.authorization.replace("Bearer ", "");
-      console.log("   Manually decoding Bearer token (length:", token.length + ")");
-      
+      const token = req.headers.authorization.replace(/^Bearer\s+/i, "");
+      console.log("   Verifying Clerk token from Authorization header");
       try {
-        // Decode JWT to extract userId (temporary workaround)
-        // JWT format: header.payload.signature
-        const tokenParts = token.split('.');
-        if (tokenParts.length === 3) {
-          const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
-          clerkId = payload.sub; // 'sub' claim contains the userId
-          console.log("✅ JWT decoded! UserId from token:", clerkId);
-          
-          // Verify the user actually exists in Clerk
-          try {
-            await clerkClient.users.getUser(clerkId);
-            console.log("✅ User verified in Clerk");
-          } catch (clerkError) {
-            console.error("❌ User not found in Clerk:", clerkError.message);
-            clerkId = null; // Reset if user doesn't exist
-          }
+        // Prefer clerkClient.sessions.verifySessionToken if available
+        let decoded = null;
+        if (clerkClient?.sessions && typeof clerkClient.sessions.verifySessionToken === 'function') {
+          decoded = await clerkClient.sessions.verifySessionToken(token);
+        } else if (typeof clerkClient.verifyToken === 'function') {
+          decoded = await clerkClient.verifyToken(token);
         } else {
-          console.error("❌ Invalid JWT format");
+          // Fallback: attempt to decode JWT locally (less secure, avoid in prod)
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+            decoded = payload;
+          }
         }
-      } catch (verifyError) {
-        console.error("❌ Token decoding failed:", verifyError.message);
+
+        clerkId = decoded?.sub || decoded?.userId || decoded?.user_id || null;
+        sessionId = decoded?.sessionId || decoded?.session_id || sessionId;
+        console.log('   Clerk token verified, clerkId:', clerkId);
+      } catch (verifyErr) {
+        console.error('❌ Clerk token verification failed:', verifyErr?.message || verifyErr);
+        return res.status(401).json({ message: 'Unauthorized - invalid token' });
       }
     }
-    
+
     if (!clerkId) {
-      console.error("❌ No userId found - user not authenticated");
-      return res.status(401).json({
-        message: "Unauthorized - Please sign in to continue"
-      });
+      console.error('❌ No userId found - user not authenticated');
+      return res.status(401).json({ message: 'Unauthorized - Please sign in to continue' });
     }
 
-    console.log("✅ ClerkId found:", clerkId);
-
-    // Find user in DB
-    let user = await User.findOne({ clerkId });
-    console.log("   User found in DB:", user ? `✅ ${user.email}` : "❌ Not found");
-
-    // Auto-create user if not found (first login scenario)
-    if (!user) {
-      console.log("   Attempting to auto-create user...");
+    // Fetch Clerk user and ensure Prisma user exists
+    let prismaUser;
+    try {
+      let clerkUser = null;
       try {
-        const clerkUser = await clerkClient.users.getUser(clerkId);
-        console.log("   Clerk user fetched:", clerkUser.emailAddresses[0]?.emailAddress);
-        
-        user = await User.create({
-          clerkId,
-          name: clerkUser.firstName 
-            ? `${clerkUser.firstName} ${clerkUser.lastName || ""}`.trim() 
-            : clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0] || "User",
-          email: clerkUser.emailAddresses[0]?.emailAddress || "",
-          profileImage: clerkUser.imageUrl || "",
-          role: "candidate",
-          skills: [],
-          yearsOfExperience: 0,
-        });
-        console.log("✅ Auto-created user:", user.email);
-      } catch (createError) {
-        console.error("❌ Failed to auto-create user:", createError.message);
-        return res.status(500).json({ 
-          message: "Failed to create user profile" 
-        });
+        clerkUser = await clerkClient.users.getUser(clerkId);
+      } catch (clerkErr) {
+        console.warn(
+          "⚠️ Clerk user lookup failed, using fallback Prisma upsert:",
+          clerkErr?.message || clerkErr
+        );
       }
+
+      prismaUser = await ensurePrismaUser({
+        clerkId,
+        firstName: clerkUser?.firstName,
+        lastName: clerkUser?.lastName,
+        fullName: clerkUser?.fullName,
+        imageUrl: clerkUser?.imageUrl,
+        email: clerkUser?.emailAddresses?.[0]?.emailAddress || clerkUser?.primaryEmailAddress?.emailAddress || "",
+        role: 'CANDIDATE',
+      });
+    } catch (err) {
+      console.error('❌ Failed to resolve Clerk/Prisma user:', err?.message || err);
+      return res.status(401).json({ message: 'Unauthorized - user not found' });
     }
 
-    // Attach user to request for controllers
-    req.user = user;
-    console.log("✅ Auth successful for user:", user.email);
-    console.log("   Proceeding to controller\n");
+    // Attach both auth and mapped prisma user for controller compatibility
+    req.user = mapPrismaUser(prismaUser);
+    // Ensure controllers that read req.auth.userId keep working — provide Prisma user id
+    req.auth = { userId: req.user.id, clerkId, sessionId };
 
-    next();
+    console.log('✅ Auth successful for user:', req.user.email);
+    return next();
   } catch (error) {
-    console.error("❌ Error in protectRoute:", error.message);
-    console.error("   Stack:", error.stack);
-    return res.status(500).json({ 
-      message: "Internal server error during authentication" 
-    });
+    console.error('❌ Error in protectRoute:', error?.message || error);
+    return res.status(500).json({ message: 'Internal server error during authentication' });
   }
 };

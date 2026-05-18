@@ -16,6 +16,9 @@ import MockInterviewPage from "./pages/MockInterviewPage.jsx";
 import RecruiterDashboardPage from "./pages/RecruiterDashboardPage.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import { setClerkToken } from "./lib/axios.js";
+import InterviewRoom from "./components/InterviewRoom.jsx";
+import ResultsPage from "./pages/ResultsPage.jsx";
+import StartInterview from "./pages/StartInterview.jsx";
 
 import { Toaster } from "react-hot-toast";
 
@@ -64,6 +67,10 @@ function App() {
         {/* PRD interview routes */}
         <Route path="/mock-interview" element={isSignedIn ? <MockInterviewPage /> : <Navigate to={"/login"} />} />
         <Route path="/recruiter-dashboard" element={isSignedIn ? <RecruiterDashboardPage /> : <Navigate to={"/login"} />} />
+        <Route path="/interview/new" element={isSignedIn ? <StartInterview /> : <Navigate to={"/login"} />} />
+        <Route path="/interview/:sessionId" element={isSignedIn ? <InterviewRoom /> : <Navigate to={'/login'} />} />
+        <Route path="/results/:sessionId" element={isSignedIn ? <ResultsPage /> : <Navigate to={'/login'} />} />
+        <Route path="/start" element={isSignedIn ? <StartInterview /> : <Navigate to={'/login'} />} />
 
         {/* Catch-all */}
         <Route path="*" element={isSignedIn ? <Navigate to="/dashboard" replace /> : <NotFound />} />

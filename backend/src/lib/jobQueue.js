@@ -1,5 +1,5 @@
 import { prisma } from "./prisma.js";
-import { generateEvaluationReport } from "./claude.js";
+import { generateEvaluationReport } from "./groq.js";
 import { ENV } from "./env.js";
 
 /**
